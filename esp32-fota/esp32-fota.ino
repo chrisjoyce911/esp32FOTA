@@ -1,3 +1,4 @@
+
 /*
   esp32 firmware OTA
 
@@ -16,11 +17,12 @@
 
 // local.h
 // Change to your WiFi credentials
-//const char* ssid = "";
-//const char* password = "";
+// const char* ssid = "";
+// const char* password = "";
+// const String FWJSON = "https://github.com/chrisjoyce911/esp32-fota/blob/master/fota/firmware.json"
 
 WiFiClient espClient;
-const int led  =21;
+const int led = 21;
 uint64_t chipid;  
 
 void setup() {
@@ -60,7 +62,7 @@ void httpget() {
  
     HTTPClient http;
  
-    http.begin("https://raw.githubusercontent.com/chrisjoyce911/esp32-fota/master/README.md"); //Specify the URL
+    http.begin("https://github.com/chrisjoyce911/esp32-fota/blob/master/fota/firmware.json"); //Specify the URL
     int httpCode = http.GET();                                        //Make the request
  
     if (httpCode > 0) { //Check for the returning code

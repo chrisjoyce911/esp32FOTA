@@ -1,8 +1,18 @@
-# TTGO-T8-ESP32
+# Experments with ESP 32 and firmware updates from a http webserver
 
-## T8 V1.7
+## Raspberry Pi webserver
+
+### Setup
+https://www.raspberrypi.org/documentation/remote-access/web-server/nginx.md
+
+### Version file
+
+
+## TTGO-T8-ESP32
+
+### T8 V1.7
 ![image](https://github.com/chrisjoyce911/esp32-fota/blob/master/image/T81.7.jpg)
-## T8 V1.3
+### T8 V1.3
 ![image](https://github.com/chrisjoyce911/esp32-fota/blob/master/image/T81.3.jpg)
 
 esp32-i2s-sdcard-wav-player
