@@ -19,7 +19,11 @@
 // Change to your WiFi credentials
 // const char* ssid = "";
 // const char* password = "";
-// const String FWJSON = "https://github.com/chrisjoyce911/esp32-fota/blob/master/fota/firmware.json"
+// const String firwmareupdate = "http://192.168.0.100/fota/fota.json";
+
+const String firwmaretype = "esp32-fota-http";
+const String firwmareversion = "1";
+
 
 WiFiClient espClient;
 const int led = 21;
@@ -62,13 +66,14 @@ void httpget() {
  
     HTTPClient http;
  
-    http.begin("https://github.com/chrisjoyce911/esp32-fota/blob/master/fota/firmware.json"); //Specify the URL
+    http.begin(firwmareupdate); //Specify the URL
     int httpCode = http.GET();                                        //Make the request
  
     if (httpCode > 0) { //Check for the returning code
  
         String payload = http.getString();
         Serial.println(httpCode);
+        Serial.println("----------------------");
         Serial.println(payload);
       }
  
@@ -86,6 +91,13 @@ void httpget() {
 
 void loop() {
   digitalWrite(led, HIGH);
+
+  Serial.print("Firwmare Type : ");
+  Serial.println(firwmaretype);
+  
+  Serial.print("Version : ");
+  Serial.println(firwmareversion);
+
 
 	chipid=ESP.getEfuseMac();//The chip ID is essentially its MAC address(length: 6 bytes).
 	Serial.printf("ESP32 Chip ID = %04X",(uint16_t)(chipid>>32));//print High 2 bytes
