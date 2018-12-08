@@ -10,6 +10,7 @@
 
 
 #include "local.h"
+#include <WiFi.h>
 
 
 // local.h
@@ -17,12 +18,36 @@
 //const char* ssid = "";
 //const char* password = "";
 
+WiFiClient espClient;
 const int led  =21;
 uint64_t chipid;  
 
 void setup() {
 	Serial.begin(115200);
   pinMode(led, OUTPUT);
+
+  setup_wifi();
+}
+
+
+void setup_wifi() {
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
 }
 
 void loop() {
