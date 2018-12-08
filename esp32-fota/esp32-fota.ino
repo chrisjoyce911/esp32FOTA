@@ -13,6 +13,7 @@
 #include "local.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include "ArduinoJson.h"
 
 
 // local.h
@@ -75,6 +76,31 @@ void httpget() {
         Serial.println(httpCode);
         Serial.println("----------------------");
         Serial.println(payload);
+
+        
+        Serial.println("Parsing start: ");
+        
+        char JSONMessage[] = " {\"name\": \"esp32-fota-http\", \"version\": 1,\"bin\": \"http://192.168.0.100/fota/esp32-fota-1.bin\"}"; //Original message
+        
+        StaticJsonBuffer<300> JSONBuffer;                         //Memory pool
+        JsonObject& parsed = JSONBuffer.parseObject(JSONMessage); //Parse message
+        
+        if (!parsed.success()) {   //Check for errors in parsing
+          Serial.println("Parsing failed");
+          delay(5000);
+          return;
+        }
+        
+        const char * plname = parsed["name"];
+        int plversion = parsed["version"];
+        const char * plurl = parsed["bin"];
+        
+        Serial.print("Sensor type: ");
+        Serial.println(plname);
+        Serial.print("version: ");
+        Serial.println(plversion);
+        Serial.print("bin url: ");
+        Serial.println(plurl);
       }
  
     else {
