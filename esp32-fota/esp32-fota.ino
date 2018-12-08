@@ -11,6 +11,7 @@
 
 #include "local.h"
 #include <WiFi.h>
+#include <HTTPClient.h>
 
 
 // local.h
@@ -50,6 +51,37 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
+
+void httpget() {
+
+   Serial.println("Getting HTTP");
+   Serial.println("----------------------");
+  if ((WiFi.status() == WL_CONNECTED)) { //Check the current connection status
+ 
+    HTTPClient http;
+ 
+    http.begin("https://raw.githubusercontent.com/chrisjoyce911/esp32-fota/master/README.md"); //Specify the URL
+    int httpCode = http.GET();                                        //Make the request
+ 
+    if (httpCode > 0) { //Check for the returning code
+ 
+        String payload = http.getString();
+        Serial.println(httpCode);
+        Serial.println(payload);
+      }
+ 
+    else {
+      Serial.println("Error on HTTP request");
+    }
+ 
+    http.end(); //Free the resources
+  }
+ 
+  Serial.println("----------------------");
+ 
+}
+
+
 void loop() {
   digitalWrite(led, HIGH);
 
@@ -58,6 +90,7 @@ void loop() {
 	Serial.printf("%08X\n",(uint32_t)chipid);//print Low 4bytes.
 
 	delay(1500);
+  httpget();
   digitalWrite(led, LOW);
-  delay(1500);
+  delay(2000);
 }
