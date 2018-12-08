@@ -23,7 +23,7 @@
 // const String firwmareupdate = "http://192.168.0.100/fota/fota.json";
 
 const String firwmaretype = "esp32-fota-http";
-const String firwmareversion = "1";
+const int firwmareversion = 1;
 
 
 WiFiClient espClient;
@@ -70,17 +70,13 @@ void httpget() {
     http.begin(firwmareupdate); //Specify the URL
     int httpCode = http.GET();                                        //Make the request
  
-    if (httpCode > 0) { //Check for the returning code
+    if (httpCode == 200 ) { //Check is a file was returned
  
         String payload = http.getString();
-        Serial.println(httpCode);
-        Serial.println("----------------------");
-        Serial.println(payload);
 
-        
-        Serial.println("Parsing start: ");
-        
-        char JSONMessage[] = " {\"name\": \"esp32-fota-http\", \"version\": 1,\"bin\": \"http://192.168.0.100/fota/esp32-fota-1.bin\"}"; //Original message
+        int str_len = payload.length() + 1; 
+        char JSONMessage[str_len];
+        payload.toCharArray(JSONMessage, str_len);
         
         StaticJsonBuffer<300> JSONBuffer;                         //Memory pool
         JsonObject& parsed = JSONBuffer.parseObject(JSONMessage); //Parse message
@@ -91,16 +87,22 @@ void httpget() {
           return;
         }
         
-        const char * plname = parsed["name"];
+        const char * pltype = parsed["type"];
         int plversion = parsed["version"];
         const char * plurl = parsed["bin"];
+
+        String fwtype(pltype);
         
-        Serial.print("Sensor type: ");
-        Serial.println(plname);
-        Serial.print("version: ");
-        Serial.println(plversion);
-        Serial.print("bin url: ");
-        Serial.println(plurl);
+        if ( plversion > firwmareversion && fwtype == firwmaretype ) {
+          Serial.println("UPGRADE NEEDED");
+          Serial.print("Firmware type: ");
+          Serial.println(pltype);
+          Serial.print("version: ");
+          Serial.println(plversion);
+          Serial.print("bin url: ");
+          Serial.println(plurl);
+        }
+        
       }
  
     else {

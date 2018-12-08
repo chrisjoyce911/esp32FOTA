@@ -1,5 +1,5 @@
 {  
-   "name":"esp32-fota",
+   "type":"esp32-fota",
    "version":1,
    "bin":"http://192.168.0.100/fota/esp32-fota-1.bin"
 }
