@@ -1,18 +1,20 @@
 #######################################
-# Syntax Coloring Map For esp32OTA
+# Syntax Coloring Map For esp32FOTA
 #######################################
 
 #######################################
 # Datatypes (KEYWORD1)
 #######################################
 
-DateTime	KEYWORD1
+esp32fota   KEYWORD1
+useDeviceID	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
 
-isrunning	KEYWORD2
+execOTA         KEYWORD2
+execHTTPcheck   KEYWORD2
 
 #######################################
 # Constants (LITERAL1)

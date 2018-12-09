@@ -1,0 +1,20 @@
+{
+  "name": "esp32FOTA",
+  "version": "1.0.0",
+  "keywords": "firmware,ota,http",
+  "description": "Allows for firmware to be updated from a webserver, the device can check for updates or mqtt pushed updates",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisjoyce911/esp32FOTA.git"
+  },
+  "authors": [
+    {
+      "name": "Chris Joyce",
+      "email": "chris@joyce.id.au",
+      "url": "https://github.com/chrisjoyce911",
+      "maintainer": true
+    }
+  ],
+  "frameworks": "arduino",
+  "platforms": "*"
+}
