@@ -7,8 +7,9 @@ String getHeaderValue(String header, String headerName) {
 }
 
 // OTA Logic 
-void execOTA(WiFiClient client , String host , String bin , int port) {
+void execOTA(String host , String bin , int port) {
 
+  WiFiClient client;
   int contentLength = 0;
   bool isValidContentType = false;
 

@@ -63,7 +63,7 @@ void execHTTPcheck(String firwmaretype , int firwmareversion) {
           Serial.print("bin : ");
           Serial.println(bin);
 
-          execOTA(client, host ,bin ,port);
+          execOTA(host ,bin ,port);
         } else {
           Serial.println("no update needed");
         }

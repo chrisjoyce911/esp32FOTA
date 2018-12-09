@@ -22,9 +22,6 @@
 #include "execOTA.h"
 #include "execHTTPcheck.h"
 #include <WiFi.h>
-#include <HTTPClient.h>
-#include "ArduinoJson.h"
-
 
 // Update your local.h
 // Change to your WiFi credentials
@@ -42,7 +39,6 @@ uint64_t chipid;
 void setup() {
 	Serial.begin(115200);
   pinMode(led, OUTPUT);
-
   setup_wifi();
 }
 
