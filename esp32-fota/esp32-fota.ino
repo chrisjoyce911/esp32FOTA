@@ -1,14 +1,22 @@
+/**
+   esp32 firmware OTA
+   Date: December 2018
+   Author: Chris Joyce <https://chrisjoyce911/esp32-fota>
+   Purpose: Perform an OTA update from a bin located on a webserver (HTTP Only)
 
-/*
-  esp32 firmware OTA
+   Setup:
+   Step 1 : add a 'local.h' to your sketch
+   Step 2 : const char* ssid = "";
+   Step 3 : const char* password = "";
+   Step 4 : const String firwmareupdate = "http://server/fota/fota.json";
+   
+   Upload:
+   Step 1 : Menu > Sketch > Export Compiled Library. The bin file will be saved in the sketch folder (Menu > Sketch > Show Sketch folder)
+   Step 2 : Upload it to your webserver
+   Step 3 : Update your firmware JSON file ( see firwmareupdate )
 
-  This example code is in the public domain.
-
-  Chris Joyce
-
-  https://github.com/chrisjoyce911/esp32-fota
 */
-
+ 
 
 #include "local.h"
 #include <WiFi.h>
@@ -21,7 +29,7 @@
 // Change to your WiFi credentials
 // const char* ssid = "";
 // const char* password = "";
-// const String firwmareupdate = "http://192.168.0.100/fota/fota.json";
+// const String firwmareupdate = "URL for fota.json";
 
 const String firwmaretype = "esp32-fota-http";
 const int firwmareversion = 1;
