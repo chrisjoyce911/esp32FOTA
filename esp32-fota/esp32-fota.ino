@@ -94,13 +94,15 @@ void httpget() {
         String fwtype(pltype);
         
         if ( plversion > firwmareversion && fwtype == firwmaretype ) {
-          Serial.println("UPGRADE NEEDED");
+          Serial.println("update needed");
           Serial.print("Firmware type: ");
           Serial.println(pltype);
           Serial.print("version: ");
           Serial.println(plversion);
           Serial.print("bin url: ");
           Serial.println(plurl);
+        } else {
+          Serial.println("no update needed");
         }
         
       }
