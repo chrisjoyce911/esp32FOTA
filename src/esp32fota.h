@@ -1,7 +1,8 @@
 /*
-  esp32fota.h - Library for flashing Morse code.
-  Created by David A. Mellis, November 2, 2007.
-  Released into the public domain.
+   esp32 firmware OTA
+   Date: December 2018
+   Author: Chris Joyce <https://chrisjoyce911/esp32FOTA>
+   Purpose: Perform an OTA update from a bin located on a webserver (HTTP Only)
 */
 
 #ifndef esp32fota_h
