@@ -58,24 +58,7 @@ void esp32FOTA::execOTA()
                 return;
             }
         }
-        // Once the response is available,
-        // check stuff
 
-        /*
-       Response Structure
-        HTTP/1.1 200 OK
-        x-amz-id-2: NVKxnU1aIQMmpGKhSwpCBh8y2JPbak18QLIfE+OiUDOos+7UftZKjtCFqrwsGOZRN5Zee0jpTd0=
-        x-amz-request-id: 2D56B47560B764EC
-        Date: Wed, 14 Jun 2017 03:33:59 GMT
-        Last-Modified: Fri, 02 Jun 2017 14:50:11 GMT
-        ETag: "d2afebbaaebc38cd669ce36727152af9"
-        Accept-Ranges: bytes
-        Content-Type: application/octet-stream
-        Content-Length: 357280
-        Server: AmazonS3
-                                   
-        {{BIN FILE CONTENTS}}
-    */
         while (client.available())
         {
             // read line till /n
@@ -83,11 +66,6 @@ void esp32FOTA::execOTA()
             // remove space, to check if the line is end of headers
             line.trim();
 
-            // if the the line is empty,
-            // this is end of headers
-            // break the while and feed the
-            // remaining `client` to the
-            // Update.writeStream();
             if (!line.length())
             {
                 //headers ended
@@ -277,8 +255,6 @@ bool esp32FOTA::execHTTPcheck()
 
         http.end(); //Free the resources
     }
-
-    Serial.println("----------------------");
 }
 
 String esp32FOTA::getDeviceID()
