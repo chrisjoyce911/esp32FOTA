@@ -12,7 +12,7 @@
 #include <Update.h>
 #include "ArduinoJson.h"
 
-esp32fota::esp32fota(String firwmareType, int firwmareVersion, String checkURL)
+esp32FOTA::esp32FOTA(String firwmareType, int firwmareVersion)
 {
     _firwmareType = firwmareType;
     _firwmareVersion = firwmareVersion;
@@ -21,13 +21,13 @@ esp32fota::esp32fota(String firwmareType, int firwmareVersion, String checkURL)
 }
 
 // Utility to extract header value from headers
-String esp32fota::getHeaderValue(String header, String headerName)
+String esp32FOTA::getHeaderValue(String header, String headerName)
 {
     return header.substring(strlen(headerName.c_str()));
 }
 
 // OTA Logic
-void esp32fota::execOTA()
+void esp32FOTA::execOTA()
 {
 
     WiFiClient client;
@@ -197,7 +197,7 @@ void esp32fota::execOTA()
     }
 }
 
-bool esp32fota::execHTTPcheck()
+bool esp32FOTA::execHTTPcheck()
 {
 
     String useURL;
@@ -281,7 +281,7 @@ bool esp32fota::execHTTPcheck()
     Serial.println("----------------------");
 }
 
-String esp32fota::getDeviceID()
+String esp32FOTA::getDeviceID()
 {
     char deviceid[21];
     uint64_t chipid;

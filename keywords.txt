@@ -6,15 +6,16 @@
 # Datatypes (KEYWORD1)
 #######################################
 
-esp32fota   KEYWORD1
+esp32FOTA	KEYWORD1
 useDeviceID	KEYWORD1
+checkURL	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
 
-execOTA         KEYWORD2
-execHTTPcheck   KEYWORD2
+execOTA			KEYWORD2
+execHTTPcheck	KEYWORD2
 
 #######################################
 # Constants (LITERAL1)

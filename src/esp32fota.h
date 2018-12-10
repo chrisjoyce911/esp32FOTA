@@ -10,13 +10,14 @@
 
 #include "Arduino.h"
 
-class esp32fota
+class esp32FOTA
 {
 public:
-  esp32fota(String firwmareType, int firwmareVersion, String checkURL);
+  esp32FOTA(String firwmareType, int firwmareVersion);
   void execOTA();
   bool execHTTPcheck();
   bool useDeviceID;
+  String checkURL;
 
 private:
   String getHeaderValue(String header, String headerName);

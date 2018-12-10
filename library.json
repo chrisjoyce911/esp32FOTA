@@ -1,8 +1,8 @@
 {
   "name": "esp32FOTA",
-  "version": "1.0.0",
-  "keywords": "firmware,ota,http",
-  "description": "Allows for firmware to be updated from a webserver, the device can check for updates or mqtt pushed updates",
+  "version": "0.1.0",
+  "keywords": "firmware, OTA, Over The Air Updates, ArduinoOTA",
+  "description": "Allows for firmware to be updated from a webserver, the device can check for updates",
   "examples": "examples/*/*.ino",
   "repository": {
     "type": "git",
@@ -17,5 +17,8 @@
     }
   ],
   "frameworks": "arduino",
-  "platforms": "*"
+  "platforms": [
+    "esp32",
+    "espressif32"
+  ]
 }
