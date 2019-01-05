@@ -24,7 +24,6 @@ private:
   String getDeviceID();
   String _firwmareType;
   int _firwmareVersion;
-  String _checkURL;
   String _host;
   String _bin;
   int _port;

@@ -16,7 +16,6 @@ esp32FOTA::esp32FOTA(String firwmareType, int firwmareVersion)
 {
     _firwmareType = firwmareType;
     _firwmareVersion = firwmareVersion;
-    _checkURL = checkURL;
     useDeviceID = false;
 }
 
@@ -183,11 +182,11 @@ bool esp32FOTA::execHTTPcheck()
     if (useDeviceID)
     {
         // String deviceID = getDeviceID() ;
-        useURL = _checkURL + "?id=" + getDeviceID();
+        useURL = checkURL + "?id=" + getDeviceID();
     }
     else
     {
-        useURL = _checkURL;
+        useURL = checkURL;
     }
 
     WiFiClient client;

@@ -1,8 +1,8 @@
 {
   "name": "esp32FOTA",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "keywords": "firmware, OTA, Over The Air Updates, ArduinoOTA",
-  "description": "Allows for firmware to be updated from a webserver, the device can check for updates",
+  "description": "Allows for firmware to be updated from a webserver, the device can check for updates at any time. Uses a simple JSON file to outline if a new firmware is avaiable.",
   "examples": "examples/*/*.ino",
   "repository": {
     "type": "git",
