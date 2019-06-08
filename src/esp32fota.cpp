@@ -212,21 +212,21 @@ bool esp32FOTA::execHTTPcheck()
             char JSONMessage[str_len];
             payload.toCharArray(JSONMessage, str_len);
 
-            StaticJsonBuffer<300> JSONBuffer;                         //Memory pool
-            JsonObject &parsed = JSONBuffer.parseObject(JSONMessage); //Parse message
+            StaticJsonDocument<300> JSONDocument;                         //Memory pool
+			DeserializationError err = deserializeJson(JSONDocument, JSONMessage);
 
-            if (!parsed.success())
+            if (err)
             { //Check for errors in parsing
                 Serial.println("Parsing failed");
                 delay(5000);
                 return false;
             }
 
-            const char *pltype = parsed["type"];
-            int plversion = parsed["version"];
-            const char *plhost = parsed["host"];
-            _port = parsed["port"];
-            const char *plbin = parsed["bin"];
+            const char *pltype = JSONDocument["type"];
+            int plversion = JSONDocument["version"];
+            const char *plhost = JSONDocument["host"];
+            _port = JSONDocument["port"];
+            const char *plbin = JSONDocument["bin"];
 
             String jshost(plhost);
             String jsbin(plbin);
