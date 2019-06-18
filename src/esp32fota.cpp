@@ -253,6 +253,7 @@ bool esp32FOTA::execHTTPcheck()
         }
 
         http.end(); //Free the resources
+        return false;
     }
 }
 
