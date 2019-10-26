@@ -15,7 +15,7 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 
 This library tries to access a JSON file hosted on a webserver, and reviews it to decide if a newer firmware has been published, if so it will download it and install it.
 
-There are a few things that need to be inplace for an update to work.
+There are a few things that need to be in place for an update to work.
 
 - A webserver with the firmware information in a JSON file
 - Firmware version
@@ -38,11 +38,11 @@ This is hosted by a webserver and contains information about the latest firmware
 }
 ```
 
-#### Firemare types
+#### Firmware types
 
-Types are used to compare with the current loaded firmware, this is used to make sure that when loaded the devie will still to the intended job.
+Types are used to compare with the current loaded firmware, this is used to make sure that when loaded, the device will still do the intended job.
 
-As an example a device used as a data logger should ony be updated with new versions of the data logger.
+As an example, a device used as a data logger should ony be updated with new versions of the data logger.
 
 ##### examples
 
