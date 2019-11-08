@@ -14,6 +14,7 @@ class esp32FOTA
 {
 public:
   esp32FOTA(String firwmareType, int firwmareVersion);
+  void forceUpdate(String firwmareHost, int firwmarePort, String firwmarePath);
   void execOTA();
   bool execHTTPcheck();
   bool useDeviceID;

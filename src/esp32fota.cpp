@@ -212,8 +212,8 @@ bool esp32FOTA::execHTTPcheck()
             char JSONMessage[str_len];
             payload.toCharArray(JSONMessage, str_len);
 
-            StaticJsonDocument<300> JSONDocument;                         //Memory pool
-			DeserializationError err = deserializeJson(JSONDocument, JSONMessage);
+            StaticJsonDocument<300> JSONDocument; //Memory pool
+            DeserializationError err = deserializeJson(JSONDocument, JSONMessage);
 
             if (err)
             { //Check for errors in parsing
@@ -255,7 +255,7 @@ bool esp32FOTA::execHTTPcheck()
         http.end(); //Free the resources
     }
     return false;
- }
+}
 
 String esp32FOTA::getDeviceID()
 {
@@ -265,4 +265,15 @@ String esp32FOTA::getDeviceID()
     sprintf(deviceid, "%" PRIu64, chipid);
     String thisID(deviceid);
     return thisID;
+}
+
+// Force a firmware update regartless on current version
+String esp32FOTA::forceUpdate(String firwmareHost, int firwmarePort, String firwmarePath)
+{
+    _host = firwmareHost;
+    _bin = firwmarePath;
+    _port = firwmarePort;
+    execOTA();
+
+    return true;
 }
