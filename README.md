@@ -8,10 +8,10 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 
 - [x] Web update (requires web server)
 - [x] Batch firmware sync
-- [x] Force firmware update [i02]
+- [x] Force firmware update [issue 15]
 - [ ] Multi firmware update record
 - [ ] Stream update (e.g. MQTT or other)
-- [ ] Checking for update via bin headers [i01]
+- [ ] Checking for update via bin headers [issues 8]
 
 ## How it works
 
@@ -95,5 +95,5 @@ void loop()
 }
 ```
 
-[i01]: https://github.com/chrisjoyce911/esp32FOTA/issues/15
-[i02]: https://github.com/chrisjoyce911/esp32FOTA/issues/8
+[issue 15]: https://github.com/chrisjoyce911/esp32FOTA/issues/15
+[issues 8]: https://github.com/chrisjoyce911/esp32FOTA/issues/8
