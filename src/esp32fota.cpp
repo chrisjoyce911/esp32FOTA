@@ -269,12 +269,10 @@ String esp32FOTA::getDeviceID()
 }
 
 // Force a firmware update regartless on current version
-String esp32FOTA::forceUpdate(String firwmareHost, int firwmarePort, String firwmarePath)
+void esp32FOTA::forceUpdate(String firwmareHost, int firwmarePort, String firwmarePath)
 {
     _host = firwmareHost;
     _bin = firwmarePath;
     _port = firwmarePort;
     execOTA();
-
-    return true;
 }
