@@ -91,9 +91,9 @@ void esp32FOTA::execOTA()
             }
 
             // Next, the content type
-            if (line.startsWith("Content-Type: "))
+            if (line.startsWith("Content-type: "))
             {
-                String contentType = getHeaderValue(line, "Content-Type: ");
+                String contentType = getHeaderValue(line, "Content-type: ");
                 Serial.println("Got " + contentType + " payload.");
                 if (contentType == "application/octet-stream")
                 {
