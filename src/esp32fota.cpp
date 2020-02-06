@@ -189,7 +189,6 @@ bool esp32FOTA::execHTTPcheck()
         useURL = checkURL;
     }
 
-    WiFiClient client;
     _port = 80;
 
     Serial.println("Getting HTTP");
