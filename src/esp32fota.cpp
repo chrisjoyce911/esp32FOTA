@@ -1,7 +1,7 @@
 /*
    esp32 firmware OTA
    Date: December 2018
-   Author: Chris Joyce <https://chrisjoyce911/esp32FOTA>
+   Author: Chris Joyce <https://github.com/chrisjoyce911/esp32FOTA/esp32FOTA>
    Purpose: Perform an OTA update from a bin located on a webserver (HTTP Only)
 */
 
