@@ -44,14 +44,15 @@ class secureEsp32FOTA
     String _descriptionOfFirmwareURL;
     char * _certificate;
     WiFiClientSecure clientForOta;
+    String _host;
 
   private:
-    bool prepareConnection();
+    bool prepareConnection(String locationOfServer);
     String secureGetContent();
     String getHeaderValue(String header, String headerName);
     String _firwmareType;
     int _firwmareVersion;
-    String _host;
+    String locationOfFirmware;
     String _bin;
     int _port;
     int getContentLength(String line);

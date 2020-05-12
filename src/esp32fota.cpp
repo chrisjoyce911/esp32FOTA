@@ -297,9 +297,9 @@ typedef   struct
 {
   int version;
   int port;
-  const char * host;
-  const char * bin;
-  const char * type;
+  String host;
+  String bin;
+  String type;
 } OTADescription;
 
 
@@ -312,7 +312,6 @@ secureEsp32FOTA::secureEsp32FOTA(String firwmareType, int firwmareVersion)
 {
     _firwmareType = firwmareType;
     _firwmareVersion = firwmareVersion;
-    useDeviceID = false;
 }
 
 
@@ -320,12 +319,11 @@ secureEsp32FOTA::secureEsp32FOTA(String firwmareType, int firwmareVersion)
 This function initializes the connection with the server, verifying that it is
 compliant with the provided certificate.
 */
-bool prepareConnection()
+bool secureEsp32FOTA::prepareConnection(String destinationServer)
 {
-    char* server=_host;
     char* certificate=_certificate;
     clientForOta.setCACert(certificate);
-    if(clientForOta.connect(server, 443))
+    if(clientForOta.connect(destinationServer.c_str(), 443))
     {
         return true;
     }
@@ -339,19 +337,18 @@ It makes use of the attributes of the class, that have to be already set.
 In particular, it makes use of the certificate, the descriptionOfFirmwareURL, 
 the host.
 */
-String secureGetContent( )
+String secureEsp32FOTA::secureGetContent( )
 {
-    char* server=_host;
     String destinationURL=_descriptionOfFirmwareURL;
     char* certificate=_certificate;
 
 
-    bool canConnectToServer=prepareConnection();
+    bool canConnectToServer=prepareConnection(_host);
     if(canConnectToServer)
     {
         //Serial.println("connected");
-        clientForOta.println("GET https://"+String(server)+destinationURL+" HTTP/1.0");
-        clientForOta.println("Host: "+String(server)+"");
+        clientForOta.println("GET https://"+String(_host)+destinationURL+" HTTP/1.0");
+        clientForOta.println("Host: "+String(_host)+"");
         clientForOta.println("Connection: close");
         clientForOta.println();
         while (clientForOta.connected()) 
@@ -386,38 +383,46 @@ of secureEsp32FOTA accordingly.
 bool secureEsp32FOTA::execHTTPSCheck()
 {
     char * certificate=_certificate;
-    char * server=_host;
-
+    
     String destinationUrl=_descriptionOfFirmwareURL;
-    OTADescription * description;
+    OTADescription  obj;
+    OTADescription * description=&obj;
+    
     String unparsedDescriptionOfFirmware=secureGetContent();
 
       int str_len = unparsedDescriptionOfFirmware.length() + 1;
       char JSONMessage[str_len];
-      pippo.toCharArray(JSONMessage, str_len);
+      unparsedDescriptionOfFirmware.toCharArray(JSONMessage, str_len);
 
-      StaticJsonBuffer<300> JSONBuffer;                         //Memory pool
-      JsonObject &parsed = JSONBuffer.parseObject(JSONMessage); //Parse message
+     StaticJsonDocument<300> JSONDocument; //Memory pool
+            DeserializationError err = deserializeJson(JSONDocument, JSONMessage);
 
-      if (!parsed.success())
-      { //Check for errors in parsing
-          //Serial.println("Parsing failed");
-          delay(5000);
-          return false;
-      }
+            if (err)
+            { //Check for errors in parsing
+                Serial.println("Parsing failed");
+                delay(5000);
+                return false;
+            }
+
 
       
-      description->type = (parsed["type"]);
+      description->type = JSONDocument["type"].as<String>();
       
-      description->host=(parsed["host"]);
-      description->version=parsed["version"];
-      description->bin=(parsed["bin"]);
+      description->host=JSONDocument["host"].as<String>();
+      description->version=JSONDocument["version"].as<int>();
+      description->bin=JSONDocument["bin"].as<String>();
       
       clientForOta.stop();
-
+      
+      if (description->version>_firwmareVersion && description->type==_firwmareType)
+      {
+        locationOfFirmware= description->host;
+        _bin=description->bin;
+        return true;
+      }
     
     
-    return true;
+    return false;
 }
 
 /*
@@ -459,20 +464,21 @@ This function launches an OTA, using the attributes of the class that describe i
 server, url and certificate.
 */
 
-void executeOTA()
+void secureEsp32FOTA::executeOTA()
 {
-  char* server=_host;
-  String destinationUrl=_descriptionOfFirmwareURL;
   char* certificate=_certificate;
 
-  bool canCorrectlyConnectToServer=prepareConnection();
+Serial.println("location of fw "+String(locationOfFirmware)+_bin+" HTTP/1.0");
+
+  bool canCorrectlyConnectToServer=prepareConnection(locationOfFirmware);
   int contentLength;
   bool isValid;
   if(canCorrectlyConnectToServer)
   {
     //Serial.println("ok");
-    clientForOta.println("GET https://"+String(server)+destinationURL+" HTTP/1.0");
-    clientForOta.println("Host: "+String(server)+"");
+    
+    clientForOta.println("GET https://"+String(locationOfFirmware)+_bin+" HTTP/1.0");
+    clientForOta.println("Host: "+String(locationOfFirmware)+"");
     clientForOta.println("Connection: close");
     clientForOta.println();
     while (clientForOta.connected())
@@ -548,9 +554,14 @@ void executeOTA()
         }
        else
        {
-        Serial.println("");
+        Serial.println(" could not begin");
        }
     }
+    else
+    {
+        Serial.println("Content invalid");
+    }
+    
   }
   else
   {
