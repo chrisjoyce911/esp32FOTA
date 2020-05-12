@@ -9,6 +9,7 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 - [x] Web update (requires web server)
 - [x] Batch firmware sync
 - [x] Force firmware update [issues 8]
+- [x] https support ( Thanks to @fbambusi )
 - [ ] Multi firmware update record
 - [ ] Stream update (e.g. MQTT or other)
 - [ ] Checking for update via bin headers [issue 15]
