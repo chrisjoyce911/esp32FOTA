@@ -47,7 +47,7 @@ void esp32FOTA::execOTA()
     if (client.connect(_host.c_str(), _port))
     {
         // Connection Succeed.
-        // Fecthing the bin
+        // Fetching the bin
         Serial.println("Fetching Bin: " + String(_bin));
 
         // Get the contents of the bin file
