@@ -88,6 +88,7 @@ void esp32FOTA::execOTA()
                 if (line.indexOf("200") < 0)
                 {
                     Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
+                    client.stop();
                     break;
                 }
                 gotHTTPStatus = true;
