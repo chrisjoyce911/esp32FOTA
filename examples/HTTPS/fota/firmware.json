@@ -1,0 +1,7 @@
+{
+    "type": "esp32-fota-https",
+    "version": 2,
+    "host": "raw.githubusercontent.com",
+    "port": 443,
+    "bin": "/chrisjoyce911/esp32FOTA/master/examples/HTTPS/fota/fota_via_https_v2.bin"
+}
