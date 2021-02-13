@@ -336,7 +336,7 @@ bool secureEsp32FOTA::prepareConnection(String destinationServer)
 {
     char *certificate = _certificate;
     clientForOta.setCACert(certificate);
-    if (clientForOta.connect(destinationServer.c_str(), 443))
+    if (clientForOta.connect(destinationServer.c_str(), _securePort))
     {
         return true;
     }

@@ -38,6 +38,7 @@ public:
   void executeOTA();
   String _descriptionOfFirmwareURL;
   char *_certificate;
+  unsigned int _securePort = 443;
   WiFiClientSecure clientForOta;
   String _host;
 
