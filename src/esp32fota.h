@@ -15,11 +15,13 @@ class esp32FOTA
 {
 public:
   esp32FOTA(String firwmareType, int firwmareVersion);
-  void forceUpdate(String firwmareHost, int firwmarePort, String firwmarePath);
+  void forceUpdate(String firwmareHost, int firwmarePort, String firwmarePath, String spiffsPath="" );
   void execOTA();
+  void execOTA( int partition );
   bool execHTTPcheck();
   bool useDeviceID;
   String checkURL;
+  WiFiClient clientForOta;
 
 private:
   String getDeviceID();
@@ -27,6 +29,7 @@ private:
   int _firwmareVersion;
   String _host;
   String _bin;
+  String _spiffs;
   int _port;
 };
 
@@ -36,6 +39,7 @@ public:
   secureEsp32FOTA(String firwmareType, int firwmareVersion);
   bool execHTTPSCheck();
   void executeOTA();
+  void executeOTA( int partition );
   String _descriptionOfFirmwareURL;
   char *_certificate;
   unsigned int _securePort = 443;
@@ -50,6 +54,7 @@ private:
   int _firwmareVersion;
   String locationOfFirmware;
   String _bin;
+  String _spiffs;
   int _port;
 };
 
