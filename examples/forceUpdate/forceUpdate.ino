@@ -52,5 +52,5 @@ void setup_wifi()
 void loop()
 {
   delay(2000);
-  esp32FOTA.forceUpdate("192.168.0.100", 80, "/fota/esp32-fota-http-2.bin")
+  esp32FOTA.forceUpdate("192.168.0.100", 80, "/fota/esp32-fota-http-2.bin");
 }
