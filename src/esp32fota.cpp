@@ -144,7 +144,7 @@ void esp32FOTA::execOTA()
         // If yes, begin
         if (canBegin)
         {
-            Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
+            Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!");
             // No activity would appear on the Serial monitor
             // So be patient. This may take 2 - 5mins to complete
             size_t written = Update.writeStream(client);
