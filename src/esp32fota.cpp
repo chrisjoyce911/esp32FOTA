@@ -14,11 +14,12 @@
 
 #include <WiFiClientSecure.h>
 
-esp32FOTA::esp32FOTA(String firwmareType, int firwmareVersion)
+esp32FOTA::esp32FOTA(String firwmareType, int firwmareVersion, Client& client)
 {
     _firwmareType = firwmareType;
     _firwmareVersion = firwmareVersion;
     useDeviceID = false;
+    this->setClient(client);
 }
 
 static void splitHeader(String src, String &header, String &headerValue)
@@ -36,42 +37,46 @@ static void splitHeader(String src, String &header, String &headerValue)
 // OTA Logic
 void esp32FOTA::execOTA()
 {
+    Client* client = this->_client;
 
-    WiFiClient client;
+    if(client==NULL)
+        return;
+
+    //WiFiClient client;
     int contentLength = 0;
     bool isValidContentType = false;
     bool gotHTTPStatus = false;
 
     Serial.println("Connecting to: " + String(_host));
     // Connect to Webserver
-    if (client.connect(_host.c_str(), _port))
+    if (client->connect(_host.c_str(), _port))
     {
         // Connection Succeed.
         // Fetching the bin
         Serial.println("Fetching Bin: " + String(_bin));
 
         // Get the contents of the bin file
-        client.print(String("GET ") + _bin + " HTTP/1.1\r\n" +
+        client->print(String("GET ") + _bin + " HTTP/1.1\r\n" +
                      "Host: " + _host + "\r\n" +
                      "Cache-Control: no-cache\r\n" +
                      "Connection: close\r\n\r\n");
 
         unsigned long timeout = millis();
-        while (client.available() == 0)
+        while (client->available() == 0)
         {
             if (millis() - timeout > 5000)
             {
                 Serial.println("Client Timeout !");
-                client.stop();
+                client->stop();
                 return;
             }
         }
 
-        while (client.available())
+        while (client->available())
         {
             String header, headerValue;
             // read line till /n
-            String line = client.readStringUntil('\n');
+            String line = client->readStringUntil('\n');
             // remove space, to check if the line is end of headers
             line.trim();
 
@@ -88,7 +93,7 @@ void esp32FOTA::execOTA()
                 if (line.indexOf("200") < 0)
                 {
                     Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
-                    client.stop();
+                    client->stop();
                     break;
                 }
                 gotHTTPStatus = true;
@@ -144,10 +149,10 @@ void esp32FOTA::execOTA()
         // If yes, begin
         if (canBegin)
         {
-            Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!");
+            Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
             // No activity would appear on the Serial monitor
             // So be patient. This may take 2 - 5mins to complete
-            size_t written = Update.writeStream(client);
+            size_t written = Update.writeStream(*client);
 
             if (written == contentLength)
             {
@@ -184,13 +189,13 @@ void esp32FOTA::execOTA()
             // Understand the partitions and
             // space availability
             Serial.println("Not enough space to begin OTA");
-            client.flush();
+            client->flush();
         }
     }
     else
     {
         Serial.println("There was no content in the response");
-        client.flush();
+        client->flush();
     }
 }
 
@@ -296,6 +301,9 @@ void esp32FOTA::forceUpdate(String firmwareHost, int firmwarePort, String firmwa
     execOTA();
 }
 
+void esp32FOTA::setClient(Client& client){
+    this->_client = &client;
+}
 //=============================================================================
 //=======================UPDATE OVER HTTPS=====================================
 //=============================================================================
