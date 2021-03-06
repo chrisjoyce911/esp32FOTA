@@ -21,8 +21,11 @@
 const char *ssid = "";
 const char *password = "";
 
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>);
-esp32FOTA FOTA("esp32-fota-http", 1);
+//Create an IP Client - WiFiClient
+WiFiClient client;
+
+// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <ip client>);
+esp32FOTA FOTA("esp32-fota-http", 1, client);
 
 void setup()
 {
