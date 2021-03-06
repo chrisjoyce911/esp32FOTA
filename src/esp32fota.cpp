@@ -39,10 +39,6 @@ void esp32FOTA::execOTA()
 {
     Client* client = this->_client;
 
-    if(client==NULL)
-        return;
-
-    //WiFiClient client;
     int contentLength = 0;
     bool isValidContentType = false;
     bool gotHTTPStatus = false;
