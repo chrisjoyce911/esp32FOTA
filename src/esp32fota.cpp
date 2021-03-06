@@ -191,7 +191,7 @@ void esp32FOTA::execOTA()
     else
     {
         Serial.println("There was no content in the response");
-        client->flush();
+        //client->flush(); prevent from flushing the client
     }
 }
 
