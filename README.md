@@ -53,6 +53,11 @@ As an example, a device used as a data logger should ony be updated with new ver
 - TTGO-T8-ESP32-Temp
 - TTGO-T8-ESP32-Relay
 
+
+### Debug
+
+Messages depends of build level. If you pass -D CORE_DEBUG_LEVEL=3 to build flags, it enable the messages
+
 ### Sketch
 
 In this example a version 1  of 'esp32-fota-http' is in use, it would be updated when using the JSON example.
