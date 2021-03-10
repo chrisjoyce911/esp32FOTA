@@ -39,6 +39,7 @@ public:
   secureEsp32FOTA(String firwmareType, int firwmareVersion);
   bool execHTTPSCheck();
   void executeOTA();
+  int getPayloadVersion();
   String _descriptionOfFirmwareURL;
   char *_certificate;
   unsigned int _securePort = 443;
@@ -51,6 +52,7 @@ private:
   bool isValidContentType(String line);
   String _firwmareType;
   int _firwmareVersion;
+  int _payloadVersion;
   String locationOfFirmware;
   String _bin;
   int _port;

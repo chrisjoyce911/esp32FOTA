@@ -297,9 +297,13 @@ void esp32FOTA::forceUpdate(String firmwareHost, int firmwarePort, String firmwa
     execOTA();
 }
 
+/**
+ * This function return the new version of new firmware
+ */
 int esp32FOTA::getPayloadVersion(){
     return _payloadVersion;
 }
+
 //=============================================================================
 //=======================UPDATE OVER HTTPS=====================================
 //=============================================================================
@@ -422,6 +426,7 @@ bool secureEsp32FOTA::execHTTPSCheck()
     description->host = JSONDocument["host"].as<String>();
     description->version = JSONDocument["version"].as<int>();
     description->bin = JSONDocument["bin"].as<String>();
+    _payloadVersion = description->version;
 
     clientForOta.stop();
 
@@ -433,6 +438,13 @@ bool secureEsp32FOTA::execHTTPSCheck()
     }
 
     return false;
+}
+
+/**
+ * This function return the new version of new firmware
+ */
+int secureEsp32FOTA::getPayloadVersion() {
+    return _payloadVersion;
 }
 
 /*
