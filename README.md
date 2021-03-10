@@ -1,3 +1,5 @@
+[![PlatformIO](https://github.com/chrisjoyce911/esp32FOTA/workflows/PlatformIO/badge.svg)](https://github.com/chrisjoyce911/esp32FOTA/actions/)
+
 # esp32FOTA library for Arduino
 
 ## Purpose
