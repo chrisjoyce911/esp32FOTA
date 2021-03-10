@@ -24,13 +24,6 @@ const char *password = "";
 // esp32fota esp32fota("<Type of Firme for this device>", <this version>);
 esp32FOTA esp32FOTA("esp32-fota-http", 1);
 
-void setup()
-{
-  esp32FOTA.checkURL = "http://server/fota/fota.json";
-  Serial.begin(115200);
-  setup_wifi();
-}
-
 void setup_wifi()
 {
   delay(10);
@@ -47,6 +40,13 @@ void setup_wifi()
 
   Serial.println("");
   Serial.println(WiFi.localIP());
+}
+
+void setup()
+{
+  esp32FOTA.checkURL = "http://server/fota/fota.json";
+  Serial.begin(115200);
+  setup_wifi();
 }
 
 void loop()
