@@ -211,8 +211,7 @@ bool esp32FOTA::execHTTPcheck()
 
     _port = 80;
 
-    log_i("Getting HTTP");
-    log_i(useURL);
+    log_i("Getting HTTP: %s",useURL.c_str());
     log_i("------");
     if ((WiFi.status() == WL_CONNECTED))
     { //Check the current connection status
