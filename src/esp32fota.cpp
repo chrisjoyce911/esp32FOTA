@@ -213,16 +213,14 @@ bool esp32FOTA::execHTTPcheck()
 
     log_i("Getting HTTP: %s",useURL.c_str());
     log_i("------");
-    if ((WiFi.status() == WL_CONNECTED))
-    { //Check the current connection status
+    if ((WiFi.status() == WL_CONNECTED)) {  //Check the current connection status
 
         HTTPClient http;
 
-        http.begin(useURL);        //Specify the URL
-        int httpCode = http.GET(); //Make the request
+        http.begin(useURL);         //Specify the URL
+        int httpCode = http.GET();  //Make the request
 
-        if (httpCode == 200)
-        { //Check is a file was returned
+        if (httpCode == 200) {  //Check is a file was returned
 
             String payload = http.getString();
 
@@ -230,11 +228,10 @@ bool esp32FOTA::execHTTPcheck()
             char JSONMessage[str_len];
             payload.toCharArray(JSONMessage, str_len);
 
-            StaticJsonDocument<300> JSONDocument; //Memory pool
+            StaticJsonDocument<300> JSONDocument;  //Memory pool
             DeserializationError err = deserializeJson(JSONDocument, JSONMessage);
 
-            if (err)
-            { //Check for errors in parsing
+            if (err) {  //Check for errors in parsing
                 Serial.println("Parsing failed");
                 delay(5000);
                 return false;
@@ -255,23 +252,14 @@ bool esp32FOTA::execHTTPcheck()
 
             String fwtype(pltype);
 
-            if (plversion > _firwmareVersion && fwtype == _firwmareType)
-            {
+            if (plversion > _firwmareVersion && fwtype == _firwmareType) {
                 return true;
             }
-            else
-            {
-                return false;
-            }
         }
-
-        else
-        {
-            Serial.println("Error on HTTP request");
-            return false;
+        else {
+            log_e("Error on HTTP request");
         }
-
-        http.end(); //Free the resources
+        http.end();  //Free the resources
         return false;
     }
     return false;
