@@ -483,7 +483,7 @@ void secureEsp32FOTA::executeOTA()
                 break; // and get the OTA started
             }
 
-            if (line.startsWith("HTTP/1.1"))
+            if (line.startsWith("HTTP/1.0") || line.startsWith("HTTP/1.1"))
             {
                 if (line.indexOf("200") < 0)
                 {
