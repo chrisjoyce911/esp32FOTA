@@ -11,27 +11,6 @@
 #include "Arduino.h"
 #include <WiFiClientSecure.h>
 
-class esp32FOTA
-{
-public:
-  esp32FOTA(String firwmareType, int firwmareVersion);
-  void forceUpdate(String firwmareHost, int firwmarePort, String firwmarePath);
-  void execOTA();
-  bool execHTTPcheck();
-  int getPayloadVersion();
-  bool useDeviceID;
-  String checkURL;
-
-private:
-  String getDeviceID();
-  String _firwmareType;
-  int _firwmareVersion;
-  int _payloadVersion;
-  String _host;
-  String _bin;
-  int _port;
-
-};
 
 class secureEsp32FOTA
 {
