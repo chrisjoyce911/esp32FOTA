@@ -36,6 +36,19 @@ typedef struct
     String type;
 } OTADescription;
 
+static void splitHeader(String src, String &header, String &headerValue)
+{
+    int idx = 0;
+
+    idx = src.indexOf(':');
+    header = src.substring(0, idx);
+    headerValue = src.substring(idx + 1, src.length());
+    headerValue.trim();
+
+    return;
+}
+
+
 /*
 The constructor sets only the firmware type and its versions, as these two 
 parameters are hardcoded in the device. The other parameters have to be set 
