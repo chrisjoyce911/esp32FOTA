@@ -88,17 +88,22 @@ String secureEsp32FOTA::secureGetContent()
     bool canConnectToServer = prepareConnection(_host);
     if (canConnectToServer)
     {
-        //Serial.println("connected");
+        Serial.println("connected");
         clientForOta.println("GET https://" + String(_host) + destinationURL + " HTTP/1.0");
         clientForOta.println("Host: " + String(_host) + "");
         clientForOta.println("Connection: close");
         clientForOta.println();
+
+        Serial.println("GET https://" + String(_host) + destinationURL + " HTTP/1.0");
+        Serial.println("Host: " + String(_host) + "");
+        Serial.println("Connection: close");
+
         while (clientForOta.connected())
         {
             String line = clientForOta.readStringUntil('\n');
             if (line == "\r")
             {
-                //Serial.println("headers received");
+                Serial.println("headers received");
                 break;
             }
         }
@@ -110,6 +115,7 @@ String secureEsp32FOTA::secureGetContent()
             partialContentOfHTTPSResponse += c;
         }
         clientForOta.stop();
+        Serial.println("return partialContentOfHTTPSResponse");
         return partialContentOfHTTPSResponse;
     }
     clientForOta.stop();
@@ -129,7 +135,13 @@ bool secureEsp32FOTA::execHTTPSCheck()
     OTADescription obj;
     OTADescription *description = &obj;
 
+    Serial.println("Get DescriptionOfFirmware");
+
     String unparsedDescriptionOfFirmware = secureGetContent();
+
+    Serial.println("DescriptionOfFirmware");
+    Serial.println(DescriptionOfFirmware);
+
 
     int str_len = unparsedDescriptionOfFirmware.length() + 1;
     char JSONMessage[str_len];
@@ -145,6 +157,10 @@ bool secureEsp32FOTA::execHTTPSCheck()
         return false;
     }
 
+    Serial.println("JSONDocument");
+    Serial.println(JSONDocument);
+
+
     description->type = JSONDocument["type"].as<String>();
 
     description->host = JSONDocument["host"].as<String>();
@@ -153,6 +169,20 @@ bool secureEsp32FOTA::execHTTPSCheck()
     _payloadVersion = description->version;
 
     clientForOta.stop();
+
+    Serial.println("description->host");
+    Serial.println(description->host);
+
+    Serial.println("description->type");
+    Serial.println(description->type);
+
+    Serial.println("description->version");
+    Serial.println(description->version);
+
+
+    Serial.println("description->bin");
+    Serial.println(description->bin);
+
 
     if (description->version > _firwmareVersion && description->type == _firwmareType)
     {
