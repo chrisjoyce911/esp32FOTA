@@ -12,6 +12,9 @@
 #include <Update.h>
 #include "ArduinoJson.h"
 
+#include "mbedtls/rsa.h"
+#include "mbedtls/md.h"
+
 #include <WiFiClientSecure.h>
 
 esp32FOTA::esp32FOTA(String firwmareType, int firwmareVersion)
@@ -31,6 +34,25 @@ static void splitHeader(String src, String &header, String &headerValue)
     headerValue.trim();
 
     return;
+}
+
+// Check file signature
+// https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
+// https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
+bool esp32FOTA::validate_sig() {
+   int ret = 1;
+   mbedtls_rsa_context rsa;
+   unsigned char hash[32];
+   unsigned char buf[MBEDTLS_MPI_MAX_SIZE];
+   
+   if( ( ret = mbedtls_mpi_read_file( &rsa.MBEDTLS_PRIVATE(N), 16, f ) ) != 0 ||
+        ( ret = mbedtls_mpi_read_file( &rsa.MBEDTLS_PRIVATE(E), 16, f ) ) != 0 ) {
+         Serial.println( "Reading public key failed\n  ! mbedtls_mpi_read_file returned %d\n\n", ret );
+         return false;
+    }
+
+    rsa.MBEDTLS_PRIVATE(len) = ( mbedtls_mpi_bitlen( &rsa.MBEDTLS_PRIVATE(N) ) + 7 ) >> 3;
+   
 }
 
 // OTA Logic
