@@ -45,13 +45,26 @@ bool esp32FOTA::validate_sig() {
    unsigned char hash[32];
    unsigned char buf[MBEDTLS_MPI_MAX_SIZE];
    
-   if( ( ret = mbedtls_mpi_read_file( &rsa.MBEDTLS_PRIVATE(N), 16, f ) ) != 0 ||
-        ( ret = mbedtls_mpi_read_file( &rsa.MBEDTLS_PRIVATE(E), 16, f ) ) != 0 ) {
-         Serial.println( "Reading public key failed\n  ! mbedtls_mpi_read_file returned %d\n\n", ret );
+   { // Open RSA public key:
+      File public_key_file = SPIFFS.open( "rsa_key.pub" );
+      if( !file ) {
+         Serial.println( "Failed to open rsa_key.pub for reading" );
          return false;
-    }
+      }
+      std::string public_key = "";
+      while( public_key_file.available() ){
+        public_key.push_back( public_key_file.read() );
+      }
+      public_key_file.close();
 
-    rsa.MBEDTLS_PRIVATE(len) = ( mbedtls_mpi_bitlen( &rsa.MBEDTLS_PRIVATE(N) ) + 7 ) >> 3;
+      if( ( ret = mbedtls_mpi_read_string( &rsa.MBEDTLS_PRIVATE(N), 16, public_key.c_str() ) ) != 0 ||
+          ( ret = mbedtls_mpi_read_file( &rsa.MBEDTLS_PRIVATE(E), 16, public_key.c_str() ) ) != 0 ) {
+          Serial.println( "Reading public key failed\n  ! mbedtls_mpi_read_file returned %d\n\n", ret );
+          return false;
+      }
+      rsa.MBEDTLS_PRIVATE(len) = ( mbedtls_mpi_bitlen( &rsa.MBEDTLS_PRIVATE(N) ) + 7 ) >> 3;
+   }
+
    
 }
 
