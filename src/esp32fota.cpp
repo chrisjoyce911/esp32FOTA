@@ -80,7 +80,7 @@ bool esp32FOTA::validate_sig( unsigned char *signature ) {
           mbed_md_update( &pk, buf, ENCRYPTED_BLOCK_SIZE  ) );
    mbed_md_finish( &pk, hash );
 
-   ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256, (unsigned char*)hash, strlen( (const char*)hash ),
+   ret = mbedtls_pk_verify( &pk, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), (unsigned char*)hash, strlen( (const char*)hash ),
 			(unsigned char*)signature, strlen( (const char*) signature ) );
 
    mbedtls_md_free( &pk );
