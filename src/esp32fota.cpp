@@ -6,14 +6,18 @@
 */
 
 #include "esp32fota.h"
-#include "Arduino.h"
+#include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <Update.h>
 #include "ArduinoJson.h"
+#include <FS.h>
+#include <SPIFFS.h>
+
 
 #include "mbedtls/pk.h"
 #include "mbedtls/md.h"
+#include "esp_ota_ops.h"
 
 #include <WiFiClientSecure.h>
 
@@ -42,13 +46,13 @@ static void splitHeader(String src, String &header, String &headerValue)
 bool esp32FOTA::validate_sig( unsigned char *signature ) {
    int ret = 1;
    mbedtls_pk_context pk;
-   mbedtls_md_context rsa;
+   mbedtls_md_context_t rsa;
    
    unsigned char hash[32];
    
    { // Open RSA public key:
       File public_key_file = SPIFFS.open( "rsa_key.pub" );
-      if( !file ) {
+      if( !public_key_file ) {
          Serial.println( "Failed to open rsa_key.pub for reading" );
          return false;
       }
@@ -60,7 +64,7 @@ bool esp32FOTA::validate_sig( unsigned char *signature ) {
 
       mbedtls_pk_init( &pk );
       if( ( ret = mbedtls_pk_parse_public_key( &pk, (unsigned char *)public_key.c_str(), strlen((const char *)public_key.c_str()) +1 ) ) != 0 ) {
-          Serial.println( "Reading public key failed\n  ! mbedtls_pk_parse_public_key %d\n\n", ret );
+          Serial.printf( "Reading public key failed\n  ! mbedtls_pk_parse_public_key %d\n\n", ret );
           return false;
       }
    }
@@ -72,18 +76,18 @@ bool esp32FOTA::validate_sig( unsigned char *signature ) {
       return false;
    }
 
-   mbed_md_init( &pk );
-   mbed_md_setup( &pk, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 0 );
-   mbed_md_starts( &pk );
+   mbedtls_md_init( &rsa );
+   mbedtls_md_setup( &rsa, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 0 );
+   mbedtls_md_starts( &rsa );
    uint8_t buf[ENCRYPTED_BLOCK_SIZE];
    while( ESP.partitionRead( partition, 0, (uint32_t*)buf, ENCRYPTED_BLOCK_SIZE) &&
-          mbed_md_update( &pk, buf, ENCRYPTED_BLOCK_SIZE  ) );
-   mbed_md_finish( &pk, hash );
+          mbedtls_md_update( &rsa, buf, ENCRYPTED_BLOCK_SIZE  ) );
+   mbedtls_md_finish( &rsa, hash );
 
-   ret = mbedtls_pk_verify( &pk, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), (unsigned char*)hash, strlen( (const char*)hash ),
+   ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256, (unsigned char*)hash, strlen( (const char*)hash ),
 			(unsigned char*)signature, strlen( (const char*) signature ) );
 
-   mbedtls_md_free( &pk );
+   mbedtls_md_free( &rsa );
    mbedtls_pk_free( &pk );
    if( ret == 0 ) {
       return true;
@@ -206,7 +210,7 @@ void esp32FOTA::execOTA()
         // If yes, begin
         if (canBegin)
         {
-            char signature[512];
+            unsigned char signature[512];
             if( _check_sig ) {
                client.readBytes( signature, 512 );
             }
