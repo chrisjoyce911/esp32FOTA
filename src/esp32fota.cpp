@@ -41,9 +41,10 @@ static void splitHeader(String src, String &header, String &headerValue)
 // https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
 bool esp32FOTA::validate_sig( unsigned char *signature ) {
    int ret = 1;
-   mbedtls_rsa_context rsa;
+   mbedtls_pk_context pk;
+   mbedtls_md_context rsa;
+   
    unsigned char hash[32];
-   //unsigned char buf[MBEDTLS_MPI_MAX_SIZE]; // we'll use signature provided by argument
    
    { // Open RSA public key:
       File public_key_file = SPIFFS.open( "rsa_key.pub" );
@@ -57,18 +58,11 @@ bool esp32FOTA::validate_sig( unsigned char *signature ) {
       }
       public_key_file.close();
 
-      if( ( ret = mbedtls_mpi_read_string( &rsa.MBEDTLS_PRIVATE(N), 16, public_key.c_str() ) ) != 0 ||
-          ( ret = mbedtls_mpi_read_file( &rsa.MBEDTLS_PRIVATE(E), 16, public_key.c_str() ) ) != 0 ) {
-          Serial.println( "Reading public key failed\n  ! mbedtls_mpi_read_file returned %d\n\n", ret );
+      mbedtls_pk_init( &pk );
+      if( ( ret = mbedtls_pk_parse_public_key( &pk, (unsigned char *)public_key.c_str(), strlen((const char *)public_key.c_str()) +1 ) ) != 0 ) {
+          Serial.println( "Reading public key failed\n  ! mbedtls_pk_parse_public_key %d\n\n", ret );
           return false;
       }
-      rsa.MBEDTLS_PRIVATE(len) = ( mbedtls_mpi_bitlen( &rsa.MBEDTLS_PRIVATE(N) ) + 7 ) >> 3;
-   }
-
-   if( sizeof( signature ) != rsa.MBEDTLS_PRIVATE(len) )
-   {
-      Serial.println( "Invalid RSA signature format\n\n" );
-      return false;
    }
 
    const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
@@ -78,21 +72,23 @@ bool esp32FOTA::validate_sig( unsigned char *signature ) {
       return false;
    }
 
-   mbed_md_setup( &rsa, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 0 );
-   mbed_md_starts( &rsa );
+   mbed_md_init( &pk );
+   mbed_md_setup( &pk, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 0 );
+   mbed_md_starts( &pk );
    uint8_t buf[ENCRYPTED_BLOCK_SIZE];
    while( ESP.partitionRead( partition, 0, (uint32_t*)buf, ENCRYPTED_BLOCK_SIZE) &&
-          mbed_md_update( &rsa, buf, ENCRYPTED_BLOCK_SIZE  ) );
-   mbed_md_finish( &rsa, hash );
-  
-   if( ( ret = mbedtls_rsa_pkcs1_verify( &rsa, MBEDTLS_MD_SHA256, 32, hash, signature ) ) != 0 ) {
-       Serial.println( "mbedtls_rsa_pkcs1_verify returned -0x%0x\n\n", (unsigned int) -ret );
-       mbedtls_rsa_free( &rsa );
-       return false;
-   }
+          mbed_md_update( &pk, buf, ENCRYPTED_BLOCK_SIZE  ) );
+   mbed_md_finish( &pk, hash );
 
-   mbedtls_rsa_free( &rsa );
-   return true;   
+   ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256, (unsigned char*)hash, strlen( (const char*)hash ),
+			(unsigned char*)signature, strlen( (const char*) signature ) );
+
+   mbedtls_md_free( &pk );
+   mbedtls_pk_free( &pk );
+   if( ret == 0 ) {
+      return true;
+   }
+   return false;
 }
 
 // OTA Logic
