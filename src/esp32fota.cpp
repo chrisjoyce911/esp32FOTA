@@ -39,11 +39,11 @@ static void splitHeader(String src, String &header, String &headerValue)
 // Check file signature
 // https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
 // https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
-bool esp32FOTA::validate_sig() {
+bool esp32FOTA::validate_sig( unsigned char *signature ) {
    int ret = 1;
    mbedtls_rsa_context rsa;
    unsigned char hash[32];
-   unsigned char buf[MBEDTLS_MPI_MAX_SIZE];
+   //unsigned char buf[MBEDTLS_MPI_MAX_SIZE]; // we'll use signature provided by argument
    
    { // Open RSA public key:
       File public_key_file = SPIFFS.open( "rsa_key.pub" );
@@ -65,7 +65,34 @@ bool esp32FOTA::validate_sig() {
       rsa.MBEDTLS_PRIVATE(len) = ( mbedtls_mpi_bitlen( &rsa.MBEDTLS_PRIVATE(N) ) + 7 ) >> 3;
    }
 
+   if( sizeof( signature ) != rsa.MBEDTLS_PRIVATE(len) )
+   {
+      Serial.println( "Invalid RSA signature format\n\n" );
+      return false;
+   }
+
+   const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
    
+   if( !partition ) {
+      Serial.println( "Could not find update partition!" );
+      return false;
+   }
+
+   mbed_md_setup( &rsa, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 0 );
+   mbed_md_starts( &rsa );
+   uint8_t buf[ENCRYPTED_BLOCK_SIZE];
+   while( ESP.partitionRead( partition, 0, (uint32_t*)buf, ENCRYPTED_BLOCK_SIZE) &&
+          mbed_md_update( &rsa, buf, ENCRYPTED_BLOCK_SIZE  ) );
+   mbed_md_finish( &rsa, hash );
+  
+   if( ( ret = mbedtls_rsa_pkcs1_verify( &rsa, MBEDTLS_MD_SHA256, 32, hash, signature ) ) != 0 ) {
+       Serial.println( "mbedtls_rsa_pkcs1_verify returned -0x%0x\n\n", (unsigned int) -ret );
+       mbedtls_rsa_free( &rsa );
+       return false;
+   }
+
+   mbedtls_rsa_free( &rsa );
+   return true;   
 }
 
 // OTA Logic
@@ -173,12 +200,20 @@ void esp32FOTA::execOTA()
     // check contentLength and content type
     if (contentLength && isValidContentType)
     {
+        if( _check_sig ) {
+           // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
+           contentLength = contentLength - 512;
+        }
         // Check if there is enough to OTA Update
         bool canBegin = Update.begin(contentLength);
 
         // If yes, begin
         if (canBegin)
         {
+            char signature[512];
+            if( _check_sig ) {
+               client.readBytes( signature, 512 );
+            }
             Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!");
             // No activity would appear on the Serial monitor
             // So be patient. This may take 2 - 5mins to complete
@@ -197,6 +232,13 @@ void esp32FOTA::execOTA()
 
             if (Update.end())
             {
+                if( _check_sig ) {
+                   if( !validate_sig( signature ) ) {
+                       Serial.println( "Signature check failed!" );
+                       ESP.restart();
+                       return;
+                   }
+                }
                 Serial.println("OTA done!");
                 if (Update.isFinished())
                 {
@@ -278,6 +320,10 @@ bool esp32FOTA::execHTTPcheck()
             _port = JSONDocument["port"];
             const char *plbin = JSONDocument["bin"];
             _payloadVersion = plversion;
+           
+            boolean cksig = JSONDocument["check_signature"];
+           _check_sig = cksig;
+            
 
             String jshost(plhost);
             String jsbin(plbin);
