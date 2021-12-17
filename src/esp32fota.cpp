@@ -12,7 +12,7 @@
 #include <Update.h>
 #include "ArduinoJson.h"
 
-#include "mbedtls/rsa.h"
+#include "mbedtls/pk.h"
 #include "mbedtls/md.h"
 
 #include <WiFiClientSecure.h>
