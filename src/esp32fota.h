@@ -30,6 +30,7 @@ private:
   String _host;
   String _bin;
   int _port;
+  boolean _check_sig;
 
 };
 
