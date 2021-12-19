@@ -17,6 +17,7 @@
 
 #include "mbedtls/pk.h"
 #include "mbedtls/md.h"
+#include "mbedtls/md_internal.h"
 #include "esp_ota_ops.h"
 
 #include <WiFiClientSecure.h>
@@ -44,57 +45,85 @@ static void splitHeader(String src, String &header, String &headerValue)
 // https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
 // https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
 bool esp32FOTA::validate_sig( unsigned char *signature ) {
-   int ret = 1;
-   mbedtls_pk_context pk;
-   mbedtls_md_context_t rsa;
+    int ret = 1;
+    mbedtls_pk_context pk;
+    mbedtls_md_context_t rsa;
+
+    { // Open RSA public key:
+        File public_key_file = SPIFFS.open( "/rsa_key.pub" );
+        if( !public_key_file ) {
+            Serial.println( "Failed to open rsa_key.pub for reading" );
+            return false;
+        }
+        std::string public_key = "";
+        while( public_key_file.available() ){
+            public_key.push_back( public_key_file.read() );
+        }
+        public_key_file.close();
+
+        mbedtls_pk_init( &pk );
+        if( ( ret = mbedtls_pk_parse_public_key( &pk, (unsigned char *)public_key.c_str(), public_key.length() +1 ) ) != 0 ) {
+            Serial.printf( "Reading public key failed\n  ! mbedtls_pk_parse_public_key %d\n\n", ret );
+            return false;
+        }
+    }
+
+    if( !mbedtls_pk_can_do( &pk, MBEDTLS_PK_RSA ) ) {
+        Serial.printf( "Failed\n public key is not an rsa key -0x%x\n\n", -ret );
+        return false;
+    }
+
+
+       const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
    
-   unsigned char hash[32];
+    if( !partition ) {
+        Serial.println( "Could not find update partition!" );
+        return false;
+    }
+
+    const mbedtls_md_info_t *mdinfo = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
+    mbedtls_md_init( &rsa );
+    mbedtls_md_setup( &rsa, mdinfo, 0 );
+    mbedtls_md_starts( &rsa );
+    
+    size_t bytestoread = 256;
+    size_t bytesread = 0;
+    unsigned char str_dst[256];
+    size_t size = partition->size;
+
+    while( bytestoread > 0 ) {
+        if( ESP.partitionRead( partition, bytesread, (const unsigned char*)str_dst, bytestoread ) ) {
+
+            mbedtls_md_update( &rsa, str_dst, bytestoread );
+
+            bytesread = bytesread +256;
+            size = size - 256;
+ 
+            if( size <= 256 ) {
+                bytestoread = size;
+            }
+        } else {
+            Serial.println( "partitionRead failed!" );
+            return false;
+        }
+    }
    
-   { // Open RSA public key:
-      File public_key_file = SPIFFS.open( "rsa_key.pub" );
-      if( !public_key_file ) {
-         Serial.println( "Failed to open rsa_key.pub for reading" );
-         return false;
-      }
-      std::string public_key = "";
-      while( public_key_file.available() ){
-        public_key.push_back( public_key_file.read() );
-      }
-      public_key_file.close();
+    unsigned char *hash = (unsigned char*)malloc( mdinfo->size );
+    mbedtls_md_finish( &rsa, hash );
 
-      mbedtls_pk_init( &pk );
-      if( ( ret = mbedtls_pk_parse_public_key( &pk, (unsigned char *)public_key.c_str(), strlen((const char *)public_key.c_str()) +1 ) ) != 0 ) {
-          Serial.printf( "Reading public key failed\n  ! mbedtls_pk_parse_public_key %d\n\n", ret );
-          return false;
-      }
-   }
+    ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256,
+        hash, mdinfo->size,
+		(unsigned char*)signature, 512
+    );
 
-   const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
-   
-   if( !partition ) {
-      Serial.println( "Could not find update partition!" );
-      return false;
-   }
-
-   mbedtls_md_init( &rsa );
-   mbedtls_md_setup( &rsa, mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 ), 0 );
-   mbedtls_md_starts( &rsa );
-   uint8_t buf[ENCRYPTED_BLOCK_SIZE];
-   while( ESP.partitionRead( partition, 0, (uint32_t*)buf, ENCRYPTED_BLOCK_SIZE) &&
-          mbedtls_md_update( &rsa, buf, ENCRYPTED_BLOCK_SIZE  ) );
-   mbedtls_md_finish( &rsa, hash );
-
-   ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256, (unsigned char*)hash, strlen( (const char*)hash ),
-			(unsigned char*)signature, strlen( (const char*) signature ) );
-
-   mbedtls_md_free( &rsa );
-   mbedtls_pk_free( &pk );
-   if( ret == 0 ) {
-      return true;
-   }
-   return false;
+    free( hash );
+    mbedtls_md_free( &rsa );
+    mbedtls_pk_free( &pk );
+    if( ret == 0 ) {
+          return true;
+    }
+    return false;
 }
-
 // OTA Logic
 void esp32FOTA::execOTA()
 {
