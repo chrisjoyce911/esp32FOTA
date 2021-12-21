@@ -389,11 +389,12 @@ String esp32FOTA::getDeviceID()
 }
 
 // Force a firmware update regartless on current version
-void esp32FOTA::forceUpdate(String firmwareHost, int firmwarePort, String firmwarePath)
+void esp32FOTA::forceUpdate(String firmwareHost, int firmwarePort, String firmwarePath, boolean validate )
 {
     _host = firmwareHost;
     _bin = firmwarePath;
     _port = firmwarePort;
+    _check_sig = validate;
     execOTA();
 }
 
