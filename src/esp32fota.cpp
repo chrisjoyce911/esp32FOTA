@@ -44,7 +44,7 @@ static void splitHeader(String src, String &header, String &headerValue)
 // Check file signature
 // https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
 // https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
-bool esp32FOTA::validate_sig( unsigned char *signature ) {
+bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size ) {
     int ret = 1;
     mbedtls_pk_context pk;
     mbedtls_md_context_t rsa;
@@ -86,34 +86,49 @@ bool esp32FOTA::validate_sig( unsigned char *signature ) {
     mbedtls_md_setup( &rsa, mdinfo, 0 );
     mbedtls_md_starts( &rsa );
     
-    size_t bytestoread = 256;
-    size_t bytesread = 0;
-    unsigned char str_dst[256];
-    size_t size = partition->size;
+    int bytestoread = SPI_FLASH_SEC_SIZE;
+    int bytesread = 0;
+    int size = firmware_size;
 
-    while( bytestoread > 0 ) {
-        if( ESP.partitionRead( partition, bytesread, (const unsigned char*)str_dst, bytestoread ) ) {
-
-            mbedtls_md_update( &rsa, str_dst, bytestoread );
-
-            bytesread = bytesread +256;
-            size = size - 256;
- 
-            if( size <= 256 ) {
-                bytestoread = size;
-            }
-        } else {
-            Serial.println( "partitionRead failed!" );
-            return false;
-        }
+    uint8_t *_buffer = (uint8_t*)malloc(SPI_FLASH_SEC_SIZE);
+    if(!_buffer){
+        Serial.println( "malloc failed" );
+        return false;
     }
-   
+    //Serial.printf( "Reading partition (%i sectors, sec_size: %i)\r\n", size, bytestoread );
+    while( bytestoread > 0 ) {
+      //Serial.printf( "Left: %i (%i)               \r", size, bytestoread );
+    
+      if( ESP.partitionRead( partition, bytesread, (uint32_t*)_buffer, bytestoread ) ) {
+	// Debug output for the purpose of comparing with file
+        /*for( int i = 0; i < bytestoread; i++ ) {
+          if( ( i % 16 ) == 0 ) {
+            Serial.printf( "\r\n0x%08x\t", i + bytesread );
+          }
+          Serial.printf( "%02x ", (uint8_t*)_buffer[i] );
+        }*/
+
+        mbedtls_md_update( &rsa, (uint8_t*)_buffer, bytestoread );
+
+        bytesread = bytesread + bytestoread;
+        size = size - bytestoread;
+
+        if( size <= SPI_FLASH_SEC_SIZE ) {
+            bytestoread = size;
+        }
+      } else {
+        Serial.println( "\npartitionRead failed!" );
+        return false;
+      }
+    }
+    free( _buffer );
+
     unsigned char *hash = (unsigned char*)malloc( mdinfo->size );
     mbedtls_md_finish( &rsa, hash );
 
     ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256,
         hash, mdinfo->size,
-		(unsigned char*)signature, 512
+	(unsigned char*)signature, 512
     );
 
     free( hash );
@@ -262,7 +277,7 @@ void esp32FOTA::execOTA()
             if (Update.end())
             {
                 if( _check_sig ) {
-                   if( !validate_sig( signature ) ) {
+                   if( !validate_sig( signature, contentLength ) ) {
                        Serial.println( "Signature check failed!" );
                        ESP.restart();
                        return;
