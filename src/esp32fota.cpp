@@ -147,7 +147,6 @@ void esp32FOTA::execOTA()
 {
     int contentLength = 0;
     bool isValidContentType = false;
-    bool gotHTTPStatus = false;
 
     HTTPClient http;
     //http.setConnectTimeout( 1000 );
@@ -238,15 +237,15 @@ void esp32FOTA::execOTA()
                 if( _check_sig ) {
                    if( !validate_sig( signature, contentLength ) ) {
                        
-                       const esp_partition_t* partition = esp_ota_get_running_partition();
-                       esp_ota_set_boot_partition( partition );
+                        const esp_partition_t* partition = esp_ota_get_running_partition();
+                        esp_ota_set_boot_partition( partition );
 
-		               log_e( "Signature check failed!" );
-                       http.end();
-                       ESP.restart();
-                       return;
+                        log_e( "Signature check failed!" );
+                        http.end();
+                        ESP.restart();
+                        return;
                    } else {
-                       log_i( "Signature OK" );
+                        log_i( "Signature OK" );
                    }
                 }
                 Serial.println("OTA done!");
@@ -348,7 +347,7 @@ bool esp32FOTA::execHTTPcheck()
             const char *plhost = JSONDocument["host"];
             _port = JSONDocument["port"];
             const char *plbin = JSONDocument["bin"];
-            _payloadVersion = plversion;
+            _payloadVersion = plversion;            
 
             String jshost(plhost);
             String jsbin(plbin);
