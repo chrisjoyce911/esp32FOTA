@@ -74,7 +74,7 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
     }
 
 
-       const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
+    const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
    
     if( !partition ) {
         Serial.println( "Could not find update partition!" );
@@ -138,8 +138,8 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
         return true;
     }
     // overwrite the frist few bytes so this partition won't boot!
-    ESP.partitionWrite( partition, 0, 0x00000000U, 4 );
-    ESP.partitionWrite( partition, 4, 0x00000000U, 4 );
+
+    ESP.partitionEraseRange( partition, 0, ENCRYPTED_BLOCK_SIZE);
 
     return false;
 }
@@ -282,8 +282,11 @@ void esp32FOTA::execOTA()
             {
                 if( _check_sig ) {
                    if( !validate_sig( signature, contentLength ) ) {
-                       Update.rollBack();
-		       Serial.println( "Signature check failed!" );
+                       
+                       const esp_partition_t* partition = esp_ota_get_running_partition();
+                       esp_ota_set_boot_partition( partition );
+
+		               Serial.println( "Signature check failed!" );
                        ESP.restart();
                        return;
                    }
