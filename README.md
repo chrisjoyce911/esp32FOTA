@@ -27,6 +27,9 @@ There are a few things that need to be in place for an update to work.
 - Firmware version
 - Firmware type
 - Firmware bin
+- For https or signature check: SPIFFS with root_ca.pem (https) and rsa_key.pem (signature check)
+
+You can supply http or https URLs to the checkURL. If you are using https, you need the root_ca.pem in your SPIFFS partition. For the actual firmware it will use https when you define port 443 or 4433. Otherwise it will use plain http.
 
 ## Usage
 
