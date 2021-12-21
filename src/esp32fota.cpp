@@ -346,8 +346,24 @@ bool esp32FOTA::execHTTPcheck()
 
         HTTPClient http;
 
-        http.begin(useURL);         //Specify the URL
-        int httpCode = http.GET();  //Make the request
+        if( useURL.substring( 0, 4 ) == "https" ) {
+            // If the checkURL is https load the root-CA and connect with that
+            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+            if( !root_ca_file ) {
+                Serial.println( "Could not open root_ca.pem" );
+                return false;
+            }
+            {
+                std::string root_ca = "";
+                while( root_ca_file.available() ){
+                    root_ca.push_back( root_ca_file.read() );
+                }
+                root_ca_file.close();
+                http.begin( useURL, root_ca.c_str() );
+            }
+        } else {
+            http.begin(useURL);         //Specify the URL
+        }        int httpCode = http.GET();  //Make the request
 
         if (httpCode == 200) {  //Check is a file was returned
 
