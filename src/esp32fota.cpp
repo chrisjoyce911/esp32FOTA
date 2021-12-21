@@ -32,10 +32,11 @@
 
 #include <WiFiClientSecure.h>
 
-esp32FOTA::esp32FOTA(String firwmareType, int firwmareVersion)
+esp32FOTA::esp32FOTA(String firwmareType, int firwmareVersion, boolean validate )
 {
     _firwmareType = firwmareType;
     _firwmareVersion = firwmareVersion;
+    _check_sig = validate;
     useDeviceID = false;
 }
 
@@ -351,10 +352,6 @@ bool esp32FOTA::execHTTPcheck()
             _port = JSONDocument["port"];
             const char *plbin = JSONDocument["bin"];
             _payloadVersion = plversion;
-           
-            boolean cksig = JSONDocument["check_signature"];
-           _check_sig = cksig;
-            
 
             String jshost(plhost);
             String jsbin(plbin);
