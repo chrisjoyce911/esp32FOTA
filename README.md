@@ -12,6 +12,7 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 - [x] Batch firmware sync
 - [x] Force firmware update [issues 8]
 - [x] https support [#26][i26] ( Thanks to @fbambusi )
+- [x] Signature check of downloaded firmware-image [issue 65]
 - [ ] Multi firmware update record
 - [ ] Stream update (e.g. MQTT or other)
 - [ ] Checking for update via bin headers [issue 15]
@@ -39,7 +40,8 @@ This is hosted by a webserver and contains information about the latest firmware
     "version": 2,
     "host": "192.168.0.100",
     "port": 80,
-    "bin": "/fota/esp32-fota-http-2.bin"
+    "bin": "/fota/esp32-fota-http-2.bin",
+    "check_signature": true
 }
 ```
 
@@ -102,6 +104,33 @@ void loop()
   delay(2000);
 }
 ```
+### Verified images via signature
+
+You can now sign your firmware image with an RSA public/private key pair and have the ESP32 check if the signature is correct before
+it switches over to the new image.
+
+In order to use this feature, enable `check_signature` in `firmware.json`. Next create a key-pair to sign your firmware image:
+```
+openssl genrsa -out priv_key.pem 4096
+openssl rsa -in priv_key.pem -pubout > rsa_key.pub
+```
+
+Compile your code so you get your OTA update file (e.g. `firmware.bin`). Now it's time to create the signature:
+```
+# Create signature file
+openssl dgst -sign priv_key.pem -keyform PEM -sha256 -out firmware.sign -binary firmware.bin
+
+# throw it all in one file
+cat firmware.sign firmware.bin > firmware.img
+```
+
+Upload `firmware.img` to your OTA server and point to it in your `firmware.json`
+
+Last step, create an SPIFFS partition with your `rsa_key.pub` in it. The OTA update should not touch this partition during the update. You'll only need to distribute this partition once.
+
+On the next update-check the ESP32 will download the `firmware.img` extract the first 512 bytes with the signature and check it together with the public key against the new image. If the signature check runs OK, it'll reset into the new firmware.
+
 
 [issue 15]: https://github.com/chrisjoyce911/esp32FOTA/issues/15
 [issues 8]: https://github.com/chrisjoyce911/esp32FOTA/issues/8
+[issue 65]: https://github.com/chrisjoyce911/esp32FOTA/issues/65

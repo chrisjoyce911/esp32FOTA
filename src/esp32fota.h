@@ -8,7 +8,7 @@
 #ifndef esp32fota_h
 #define esp32fota_h
 
-#include "Arduino.h"
+#include <Arduino.h>
 #include <WiFiClientSecure.h>
 
 class esp32FOTA
@@ -21,6 +21,7 @@ public:
   int getPayloadVersion();
   bool useDeviceID;
   String checkURL;
+  bool validate_sig( unsigned char *signature, uint32_t firmware_size );
 
 private:
   String getDeviceID();
@@ -30,6 +31,7 @@ private:
   String _host;
   String _bin;
   int _port;
+  boolean _check_sig;
 
 };
 

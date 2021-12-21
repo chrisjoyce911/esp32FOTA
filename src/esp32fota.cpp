@@ -6,11 +6,19 @@
 */
 
 #include "esp32fota.h"
-#include "Arduino.h"
+#include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <Update.h>
 #include "ArduinoJson.h"
+#include <FS.h>
+#include <SPIFFS.h>
+
+
+#include "mbedtls/pk.h"
+#include "mbedtls/md.h"
+#include "mbedtls/md_internal.h"
+#include "esp_ota_ops.h"
 
 #include <WiFiClientSecure.h>
 
@@ -33,6 +41,108 @@ static void splitHeader(String src, String &header, String &headerValue)
     return;
 }
 
+// Check file signature
+// https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
+// https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
+bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size ) {
+    int ret = 1;
+    mbedtls_pk_context pk;
+    mbedtls_md_context_t rsa;
+
+    { // Open RSA public key:
+        File public_key_file = SPIFFS.open( "/rsa_key.pub" );
+        if( !public_key_file ) {
+            Serial.println( "Failed to open rsa_key.pub for reading" );
+            return false;
+        }
+        std::string public_key = "";
+        while( public_key_file.available() ){
+            public_key.push_back( public_key_file.read() );
+        }
+        public_key_file.close();
+
+        mbedtls_pk_init( &pk );
+        if( ( ret = mbedtls_pk_parse_public_key( &pk, (unsigned char *)public_key.c_str(), public_key.length() +1 ) ) != 0 ) {
+            Serial.printf( "Reading public key failed\n  ! mbedtls_pk_parse_public_key %d\n\n", ret );
+            return false;
+        }
+    }
+
+    if( !mbedtls_pk_can_do( &pk, MBEDTLS_PK_RSA ) ) {
+        Serial.printf( "Failed\n public key is not an rsa key -0x%x\n\n", -ret );
+        return false;
+    }
+
+
+    const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
+   
+    if( !partition ) {
+        Serial.println( "Could not find update partition!" );
+        return false;
+    }
+
+    const mbedtls_md_info_t *mdinfo = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
+    mbedtls_md_init( &rsa );
+    mbedtls_md_setup( &rsa, mdinfo, 0 );
+    mbedtls_md_starts( &rsa );
+    
+    int bytestoread = SPI_FLASH_SEC_SIZE;
+    int bytesread = 0;
+    int size = firmware_size;
+
+    uint8_t *_buffer = (uint8_t*)malloc(SPI_FLASH_SEC_SIZE);
+    if(!_buffer){
+        Serial.println( "malloc failed" );
+        return false;
+    }
+    //Serial.printf( "Reading partition (%i sectors, sec_size: %i)\r\n", size, bytestoread );
+    while( bytestoread > 0 ) {
+      //Serial.printf( "Left: %i (%i)               \r", size, bytestoread );
+    
+      if( ESP.partitionRead( partition, bytesread, (uint32_t*)_buffer, bytestoread ) ) {
+	// Debug output for the purpose of comparing with file
+        /*for( int i = 0; i < bytestoread; i++ ) {
+          if( ( i % 16 ) == 0 ) {
+            Serial.printf( "\r\n0x%08x\t", i + bytesread );
+          }
+          Serial.printf( "%02x ", (uint8_t*)_buffer[i] );
+        }*/
+
+        mbedtls_md_update( &rsa, (uint8_t*)_buffer, bytestoread );
+
+        bytesread = bytesread + bytestoread;
+        size = size - bytestoread;
+
+        if( size <= SPI_FLASH_SEC_SIZE ) {
+            bytestoread = size;
+        }
+      } else {
+        Serial.println( "\npartitionRead failed!" );
+        return false;
+      }
+    }
+    free( _buffer );
+
+    unsigned char *hash = (unsigned char*)malloc( mdinfo->size );
+    mbedtls_md_finish( &rsa, hash );
+
+    ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256,
+        hash, mdinfo->size,
+	(unsigned char*)signature, 512
+    );
+
+    free( hash );
+    mbedtls_md_free( &rsa );
+    mbedtls_pk_free( &pk );
+    if( ret == 0 ) {
+        return true;
+    }
+    // overwrite the frist few bytes so this partition won't boot!
+
+    ESP.partitionEraseRange( partition, 0, ENCRYPTED_BLOCK_SIZE);
+
+    return false;
+}
 // OTA Logic
 void esp32FOTA::execOTA()
 {
@@ -138,12 +248,20 @@ void esp32FOTA::execOTA()
     // check contentLength and content type
     if (contentLength && isValidContentType)
     {
+        if( _check_sig ) {
+           // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
+           contentLength = contentLength - 512;
+        }
         // Check if there is enough to OTA Update
         bool canBegin = Update.begin(contentLength);
 
         // If yes, begin
         if (canBegin)
         {
+            unsigned char signature[512];
+            if( _check_sig ) {
+               client.readBytes( signature, 512 );
+            }
             Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!");
             // No activity would appear on the Serial monitor
             // So be patient. This may take 2 - 5mins to complete
@@ -162,6 +280,17 @@ void esp32FOTA::execOTA()
 
             if (Update.end())
             {
+                if( _check_sig ) {
+                   if( !validate_sig( signature, contentLength ) ) {
+                       
+                       const esp_partition_t* partition = esp_ota_get_running_partition();
+                       esp_ota_set_boot_partition( partition );
+
+		               Serial.println( "Signature check failed!" );
+                       ESP.restart();
+                       return;
+                   }
+                }
                 Serial.println("OTA done!");
                 if (Update.isFinished())
                 {
@@ -243,6 +372,10 @@ bool esp32FOTA::execHTTPcheck()
             _port = JSONDocument["port"];
             const char *plbin = JSONDocument["bin"];
             _payloadVersion = plversion;
+           
+            boolean cksig = JSONDocument["check_signature"];
+           _check_sig = cksig;
+            
 
             String jshost(plhost);
             String jsbin(plbin);
