@@ -21,7 +21,7 @@ public:
   int getPayloadVersion();
   bool useDeviceID;
   String checkURL;
-  bool validate_sig( unsigned char* signature );
+  bool validate_sig( unsigned char *signature, uint32_t firmware_size );
 
 private:
   String getDeviceID();
