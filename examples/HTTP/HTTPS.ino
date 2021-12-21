@@ -26,8 +26,8 @@
 const char *ssid = "";
 const char *password = "";
 
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>);
-esp32FOTA esp32FOTA("esp32-fota-http", 1);
+// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
+esp32FOTA esp32FOTA("esp32-fota-http", 1, false);
 
 void setup_wifi()
 {
