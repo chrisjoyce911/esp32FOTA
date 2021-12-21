@@ -135,8 +135,12 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
     mbedtls_md_free( &rsa );
     mbedtls_pk_free( &pk );
     if( ret == 0 ) {
-          return true;
+        return true;
     }
+    // overwrite the frist few bytes so this partition won't boot!
+    ESP.partitionWrite( partition, 0, 0x00000000U, 4 );
+    ESP.partitionWrite( partition, 4, 0x00000000U, 4 );
+
     return false;
 }
 // OTA Logic
@@ -278,7 +282,8 @@ void esp32FOTA::execOTA()
             {
                 if( _check_sig ) {
                    if( !validate_sig( signature, contentLength ) ) {
-                       Serial.println( "Signature check failed!" );
+                       Update.rollBack();
+		       Serial.println( "Signature check failed!" );
                        ESP.restart();
                        return;
                    }
