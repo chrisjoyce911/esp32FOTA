@@ -23,7 +23,7 @@
 class esp32FOTA
 {
 public:
-  esp32FOTA(String firwmareType, int firwmareVersion);
+  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false );
   void forceUpdate(String firwmareHost, int firwmarePort, String firwmarePath, boolean validate = false );
   void execOTA();
   bool execHTTPcheck();
