@@ -145,9 +145,6 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
 // OTA Logic
 void esp32FOTA::execOTA()
 {
-
-    WiFiClientSecure secure_client;
-    WiFiClient client = secure_client;
     int contentLength = 0;
     bool isValidContentType = false;
     bool gotHTTPStatus = false;
