@@ -17,6 +17,8 @@
 
 #include <Arduino.h>
 
+#include <WiFi.h>
+
 #include <FS.h>
 #include <SPIFFS.h>
 #include <esp32fota.h>
