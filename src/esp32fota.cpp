@@ -180,7 +180,7 @@ void esp32FOTA::execOTA()
 
     int httpCode = http.GET();
    
-    if( httpCode == 200 ) {
+    if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
         contentLength = http.header( "Content-Length" ).toInt();
         String contentType = http.header( "Content-type" );
         if( contentType == "application/octet-stream" ) {
@@ -325,7 +325,7 @@ bool esp32FOTA::execHTTPcheck()
         }
         int httpCode = http.GET();  //Make the request
 
-        if (httpCode == 200) {  //Check is a file was returned
+        if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {  //Check is a file was returned
 
             String payload = http.getString();
 
