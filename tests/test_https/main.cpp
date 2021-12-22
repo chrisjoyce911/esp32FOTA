@@ -1,1 +1,1 @@
-../../examples/HTTPS/HTTPS.ino
+../../examples/HTTP/HTTPS.ino

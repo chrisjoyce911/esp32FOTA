@@ -21,8 +21,8 @@
 const char *ssid = "";
 const char *password = "";
 
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>);
-esp32FOTA esp32FOTA("esp32-fota-http", 1);
+// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
+esp32FOTA esp32FOTA("esp32-fota-http", 1, false);
 
 void setup()
 {
@@ -52,5 +52,5 @@ void setup_wifi()
 void loop()
 {
   delay(2000);
-  esp32FOTA.forceUpdate("192.168.0.100", 80, "/fota/esp32-fota-http-2.bin");
+  esp32FOTA.forceUpdate("192.168.0.100", 80, "/fota/esp32-fota-http-2.bin", true ); // check signature: true
 }
