@@ -35,10 +35,36 @@
 esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate, boolean allow_insecure_https)
 {
     _firmwareType = firmwareType;
-    _firmwareVersion = firmwareVersion;
+    _firmwareVersion = semver_t{firmwareVersion};
     _check_sig = validate;
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
+}
+
+esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolean validate, boolean allow_insecure_https)
+{
+    if (semver_parse(firmwareSemanticVersion.c_str(), &_firmwareVersion)) {
+        log_e( "Invalid semver string %s passed to constructor. Defaulting to 0", firmwareSemanticVersion.c_str() );
+        _firmwareVersion = semver_t {0};
+    }
+
+    _firmwareType = firmwareType;
+    _check_sig = validate;
+    _allow_insecure_https = allow_insecure_https;
+    useDeviceID = false;
+
+#if ARDUINO_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
+    char version_no[128];
+    semver_render(&_firmwareVersion, version_no);
+    log_i("Current firmware version: %s\r\n", version_no );
+#endif
+
+}
+
+
+esp32FOTA::~esp32FOTA() {
+    semver_free(&_firmwareVersion);
+    semver_free(&_payloadVersion);
 }
 
 // Check file signature
@@ -355,7 +381,19 @@ bool esp32FOTA::execHTTPcheck()
             }
 
             const char *pltype = JSONDocument["type"];
-            int plversion = JSONDocument["version"];
+
+            semver_free(&_payloadVersion);
+            if (semver_parse(JSONDocument["version"].as<const char *>(), &_payloadVersion)) {
+                log_e( "Invalid semver string received in manifest. Defaulting to 0" );
+                _payloadVersion = semver_t {0};
+            }
+
+#if ARDUINO_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
+            char version_no[128];
+            semver_render(&_firmwareVersion, version_no);
+            log_i("Payload firmware version: %s\r\n", version_no );
+#endif
+
 
             if(JSONDocument["url"].is<String>()) {
                 // We were provided a complete URL in the JSON manifest - use it
@@ -378,11 +416,10 @@ bool esp32FOTA::execHTTPcheck()
                 return false;
             }
 
-            _payloadVersion = plversion;            
 
             String fwtype(pltype);
 
-            if (plversion > _firmwareVersion && fwtype == _firmwareType) {
+            if (semver_compare(_payloadVersion, _firmwareVersion) == 1 && fwtype == _firmwareType) {
                 http.end();
                 return true;
             }
@@ -432,6 +469,6 @@ void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String f
 /**
  * This function return the new version of new firmware
  */
-int esp32FOTA::getPayloadVersion(){
-    return _payloadVersion;
-}
+// int esp32FOTA::getPayloadVersion(){
+//     return _payloadVersion;
+// }

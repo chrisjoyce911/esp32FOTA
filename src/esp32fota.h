@@ -19,16 +19,19 @@
 #define esp32fota_h
 
 #include <Arduino.h>
+#include "semver/semver.h"
 
 class esp32FOTA
 {
 public:
   esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false, boolean allow_insecure_https = false );
+  esp32FOTA(String firwmareType, String firmwareSemanticVersion, boolean validate = false, boolean allow_insecure_https = false );
+  ~esp32FOTA();
   void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate );
   void forceUpdate(String firmwareURL, boolean validate );
   void execOTA();
   bool execHTTPcheck();
-  int getPayloadVersion();
+  // int getPayloadVersion();
   bool useDeviceID;
   String checkURL;
   bool validate_sig( unsigned char *signature, uint32_t firmware_size );
@@ -36,8 +39,8 @@ public:
 private:
   String getDeviceID();
   String _firmwareType;
-  int _firmwareVersion;
-  int _payloadVersion;
+  semver_t _firmwareVersion;
+  semver_t _payloadVersion;
   String _firmwareUrl;
   boolean _check_sig;
   boolean _allow_insecure_https;

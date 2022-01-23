@@ -148,3 +148,8 @@ On the next update-check the ESP32 will download the `firmware.img` extract the 
 [issue 15]: https://github.com/chrisjoyce911/esp32FOTA/issues/15
 [issues 8]: https://github.com/chrisjoyce911/esp32FOTA/issues/8
 [issue 65]: https://github.com/chrisjoyce911/esp32FOTA/issues/65
+
+
+### Libraries
+
+This relies on [semver.c by h2non](https://github.com/h2non/semver.c) for semantic versioning support. semver.c is licensed under [MIT](https://github.com/h2non/semver.c/blob/master/LICENSE).
