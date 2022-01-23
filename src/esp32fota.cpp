@@ -480,7 +480,7 @@ void esp32FOTA::forceUpdate(boolean validate )
         if (!_firmwareUrl) {
             // execHTTPcheck returns false if either the manifest is malformed or if the version isn't
             // an upgrade. If _firmwareUrl isn't set, however, we can't force an upgrade. 
-            log_e("forceUpdate called, but unable to get _firmwareUrl from manifest via execHTTPcheck.")
+            log_e("forceUpdate called, but unable to get _firmwareUrl from manifest via execHTTPcheck.");
             return;
         }
     }
