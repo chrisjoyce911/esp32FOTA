@@ -433,8 +433,7 @@ bool esp32FOTA::execHTTPcheck()
                 http.end();
                 return true;
             }
-        }
-        else {
+        } else {
             log_e("Error on HTTP request");
         }
         http.end();  //Free the resources
@@ -474,6 +473,20 @@ void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String f
     forceUpdate(firmwareURL, validate);
 }
 
+void esp32FOTA::forceUpdate(boolean validate )
+{
+    // Forces an update from a manifest, ignoring the version check
+    if(!execHTTPcheck()) {
+        if (!_firmwareUrl) {
+            // execHTTPcheck returns false if either the manifest is malformed or if the version isn't
+            // an upgrade. If _firmwareUrl isn't set, however, we can't force an upgrade. 
+            log_e("forceUpdate called, but unable to get _firmwareUrl from manifest via execHTTPcheck.")
+            return;
+        }
+    }
+    _check_sig = validate;
+    execOTA();
+}
 
 
 /**

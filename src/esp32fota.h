@@ -29,6 +29,7 @@ public:
   ~esp32FOTA();
   void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate );
   void forceUpdate(String firmwareURL, boolean validate );
+  void forceUpdate(boolean validate );
   void execOTA();
   bool execHTTPcheck();
   int getPayloadVersion();
