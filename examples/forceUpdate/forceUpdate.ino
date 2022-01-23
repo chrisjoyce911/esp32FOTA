@@ -1,7 +1,7 @@
 /**
    esp32 firmware OTA
 
-   Purpose: Perform an OTA update from a bin located on a webserver (HTTP Only)
+   Purpose: Perform an OTA update from a bin located on a webserver
 
    Setup:
    Step 1 : Set your WiFi (ssid & password)
@@ -21,7 +21,7 @@
 const char *ssid = "";
 const char *password = "";
 
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
+// esp32fota esp32fota("<Type of Firmware for this device>", <this version>, <validate signature>);
 esp32FOTA esp32FOTA("esp32-fota-http", 1, false);
 
 void setup()
@@ -53,4 +53,8 @@ void loop()
 {
   delay(2000);
   esp32FOTA.forceUpdate("192.168.0.100", 80, "/fota/esp32-fota-http-2.bin", true ); // check signature: true
+
+  // Alternatively, forceUpdate can be called with a complete URL:
+  //esp32FOTA.forceUpdate("http://192.168.0.100/fota/esp32-fota-http-2.bin", true ); // check signature: true
+
 }
