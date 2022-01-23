@@ -34,8 +34,8 @@ public:
 
 private:
   String getDeviceID();
-  String _firwmareType;
-  int _firwmareVersion;
+  String _firmwareType;
+  int _firmwareVersion;
   int _payloadVersion;
   String _host;
   String _bin;
