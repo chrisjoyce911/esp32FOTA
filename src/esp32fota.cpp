@@ -39,6 +39,11 @@ esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate,
     _check_sig = validate;
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
+
+    char version_no[256] = {'\0'};     // If we are passed firmwareVersion as an int, we're assuming it's a major version
+    semver_render(&_firmwareVersion, version_no);
+    log_i("Current firmware version: %s", version_no );
+
 }
 
 esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolean validate, boolean allow_insecure_https)
@@ -53,11 +58,9 @@ esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolea
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
 
-#if ARDUINO_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
-    char version_no[128];
+    char version_no[256] = {'\0'};
     semver_render(&_firmwareVersion, version_no);
-    log_i("Current firmware version: %s\r\n", version_no );
-#endif
+    log_i("Current firmware version: %s", version_no );
 
 }
 
@@ -383,16 +386,23 @@ bool esp32FOTA::execHTTPcheck()
             const char *pltype = JSONDocument["type"];
 
             semver_free(&_payloadVersion);
-            if (semver_parse(JSONDocument["version"].as<const char *>(), &_payloadVersion)) {
-                log_e( "Invalid semver string received in manifest. Defaulting to 0" );
+            if(JSONDocument["version"].is<uint16_t>()) {
+                log_i("JSON version: %d (int)", JSONDocument["version"].as<uint16_t>());
+                _payloadVersion = semver_t {JSONDocument["version"].as<uint16_t>()};
+            } else if (JSONDocument["version"].is<const char *>()) {
+                log_i("JSON version: %s (semver)", JSONDocument["version"].as<const char *>() );
+                if (semver_parse(JSONDocument["version"].as<const char *>(), &_payloadVersion)) {
+                    log_e( "Invalid semver string received in manifest. Defaulting to 0" );
+                    _payloadVersion = semver_t {0};
+                }
+            } else {
+                log_e( "Invalid semver format received in manifest. Defaulting to 0" );
                 _payloadVersion = semver_t {0};
             }
 
-#if ARDUINO_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_INFO
-            char version_no[128];
-            semver_render(&_firmwareVersion, version_no);
-            log_i("Payload firmware version: %s\r\n", version_no );
-#endif
+            char version_no[256] = {'\0'};
+            semver_render(&_payloadVersion, version_no);
+            log_i("Payload firmware version: %s", version_no );
 
 
             if(JSONDocument["url"].is<String>()) {
@@ -469,6 +479,11 @@ void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String f
 /**
  * This function return the new version of new firmware
  */
-// int esp32FOTA::getPayloadVersion(){
-//     return _payloadVersion;
-// }
+int esp32FOTA::getPayloadVersion(){
+    log_w( "int esp32FOTA::getPayloadVersion() only returns the major version from semantic version strings. Use void esp32FOTA::getPayloadVersion(char * version_string) instead!" );
+    return _payloadVersion.major;
+}
+
+void esp32FOTA::getPayloadVersion(char * version_string){
+    semver_render(&_payloadVersion, version_string);
+}

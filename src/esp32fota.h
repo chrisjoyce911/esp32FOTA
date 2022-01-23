@@ -31,7 +31,8 @@ public:
   void forceUpdate(String firmwareURL, boolean validate );
   void execOTA();
   bool execHTTPcheck();
-  // int getPayloadVersion();
+  int getPayloadVersion();
+  void getPayloadVersion(char * version_string);
   bool useDeviceID;
   String checkURL;
   bool validate_sig( unsigned char *signature, uint32_t firmware_size );
@@ -39,8 +40,8 @@ public:
 private:
   String getDeviceID();
   String _firmwareType;
-  semver_t _firmwareVersion;
-  semver_t _payloadVersion;
+  semver_t _firmwareVersion = {0};
+  semver_t _payloadVersion = {0};
   String _firmwareUrl;
   boolean _check_sig;
   boolean _allow_insecure_https;

@@ -48,12 +48,12 @@ This is hosted by a webserver and contains information about the latest firmware
 }
 ```
 
-Alternatively, a full URL path can be provided:
+Version information can be either a single number or a semantic version string. Alternatively, a full URL path can be provided:
 
 ```json
 {
     "type": "esp32-fota-http",
-    "version": 2,
+    "version": "2.5.1",
     "url": "http://192.168.0.100/fota/esp32-fota-http-2.bin",
     "check_signature": true
 }
@@ -87,7 +87,7 @@ In this example a version 1  of 'esp32-fota-http' is in use, it would be updated
 const char *ssid = "";
 const char *password = "";
 
-esp32FOTA esp32FOTA("esp32-fota-http", 1);
+esp32FOTA esp32FOTA("esp32-fota-http", "1.0.0");
 
 void setup()
 {
