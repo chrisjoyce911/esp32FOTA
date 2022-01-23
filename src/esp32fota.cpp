@@ -150,6 +150,7 @@ void esp32FOTA::execOTA()
     bool isValidContentType = false;
 
     HTTPClient http;
+    WiFiClientSecure client;
     //http.setConnectTimeout( 1000 );
     
     log_i("Connecting to: %s:%i%s\r\n", _host.c_str(), _port, _bin.c_str() );
@@ -175,7 +176,6 @@ void esp32FOTA::execOTA()
             }
         } else {
             // We're downloading from a secure port, but we don't want to validate the root cert.
-            WiFiClientSecure client;
             client.setInsecure();
             http.begin(client, String( "https://") + _host + ":" + String( _port ) + _bin);
         }
@@ -311,6 +311,7 @@ bool esp32FOTA::execHTTPcheck()
     if ((WiFi.status() == WL_CONNECTED)) {  //Check the current connection status
 
         HTTPClient http;
+        WiFiClientSecure client;
 
         if( useURL.substring( 0, 5 ) == "https" ) {
             if (!_allow_insecure_https) {
@@ -331,7 +332,6 @@ bool esp32FOTA::execHTTPcheck()
                 }
             } else {
                 // We're downloading from a secure port, but we don't want to validate the root cert.
-                WiFiClientSecure client;
                 client.setInsecure();
                 http.begin(client, useURL);
             }
