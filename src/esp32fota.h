@@ -23,7 +23,7 @@
 class esp32FOTA
 {
 public:
-  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false );
+  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false, boolean allow_insecure_https = false );
   void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate );
   void forceUpdate(String firmwareURL, boolean validate );
   void execOTA();
@@ -40,6 +40,7 @@ private:
   int _payloadVersion;
   String _firmwareUrl;
   boolean _check_sig;
+  boolean _allow_insecure_https;
 
 };
 

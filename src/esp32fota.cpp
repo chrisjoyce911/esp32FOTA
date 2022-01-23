@@ -10,7 +10,7 @@
             now URL-agnostic. This means if you provide an https://-URL it will
             use the root_ca.pem (needs to be provided via SPIFFS) to verify the
             server certificate and then download the ressource through an encrypted
-            connection.
+            connection unless you set the allow_insecure_https option.
             Otherwise it will just use plain HTTP which will still offer to sign
             your firmware image.
 */
@@ -32,11 +32,12 @@
 
 #include <WiFiClientSecure.h>
 
-esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate)
+esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate, boolean allow_insecure_https)
 {
     _firmwareType = firmwareType;
     _firmwareVersion = firmwareVersion;
     _check_sig = validate;
+    _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
 }
 
@@ -149,26 +150,33 @@ void esp32FOTA::execOTA()
     bool isValidContentType = false;
 
     HTTPClient http;
+    WiFiClientSecure client;
     //http.setConnectTimeout( 1000 );
     
     log_i("Connecting to: %s\r\n", _firmwareUrl.c_str() );
     if( _firmwareUrl.substring( 0, 5 ) == "https" ) {
-        // If we're downloading from secure port use WifiClientSecure instead
-        // and provide the root_ca.pem
-        log_i( "Loading root_ca.pem" );
-        //WiFiClientSecure client;
-        File root_ca_file = SPIFFS.open( "/root_ca.pem" );
-        if( !root_ca_file ) {
-            log_e( "Could not open root_ca.pem" );
-            return;
-        }
-        {
-            std::string root_ca = "";
-            while( root_ca_file.available() ){
-                root_ca.push_back( root_ca_file.read() );
+        if (!_allow_insecure_https) {
+            // If we're downloading from secure URL use WifiClientSecure instead
+            // and provide the root_ca.pem
+            log_i( "Loading root_ca.pem" );
+            //WiFiClientSecure client;
+            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+            if( !root_ca_file ) {
+                log_e( "Could not open root_ca.pem" );
+                return;
             }
-            root_ca_file.close();
-            http.begin( _firmwareUrl, root_ca.c_str() );
+            {
+                std::string root_ca = "";
+                while( root_ca_file.available() ){
+                    root_ca.push_back( root_ca_file.read() );
+                }
+                root_ca_file.close();
+                http.begin( _firmwareUrl, root_ca.c_str() );
+            }
+        } else {
+            // We're downloading from a secure URL, but we don't want to validate the root cert.
+            client.setInsecure();
+            http.begin(client, _firmwareUrl);
         }
     } else {
         http.begin( _firmwareUrl );
@@ -300,22 +308,29 @@ bool esp32FOTA::execHTTPcheck()
     if ((WiFi.status() == WL_CONNECTED)) {  //Check the current connection status
 
         HTTPClient http;
+        WiFiClientSecure client;
 
         if( useURL.substring( 0, 5 ) == "https" ) {
-            // If the checkURL is https load the root-CA and connect with that
-            log_i( "Loading root_ca.pem" );
-            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
-            if( !root_ca_file ) {
-                log_e( "Could not open root_ca.pem" );
-                return false;
-            }
-            {
-                std::string root_ca = "";
-                while( root_ca_file.available() ){
-                    root_ca.push_back( root_ca_file.read() );
+            if (!_allow_insecure_https) {
+                // If the checkURL is https load the root-CA and connect with that
+                log_i( "Loading root_ca.pem" );
+                File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+                if( !root_ca_file ) {
+                    log_e( "Could not open root_ca.pem" );
+                    return false;
                 }
-                root_ca_file.close();
-                http.begin( useURL, root_ca.c_str() );
+                {
+                    std::string root_ca = "";
+                    while( root_ca_file.available() ){
+                        root_ca.push_back( root_ca_file.read() );
+                    }
+                    root_ca_file.close();
+                    http.begin( useURL, root_ca.c_str() );
+                }
+            } else {
+                // We're downloading from a secure port, but we don't want to validate the root cert.
+                client.setInsecure();
+                http.begin(client, useURL);
             }
         } else {
             http.begin(useURL);         //Specify the URL
