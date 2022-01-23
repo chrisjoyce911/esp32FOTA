@@ -338,7 +338,7 @@ bool esp32FOTA::execHTTPcheck()
 
             if (err) {  //Check for errors in parsing
                 log_e("Parsing failed");
-                delay(5000);
+                http.end();
                 return false;
             }
 
