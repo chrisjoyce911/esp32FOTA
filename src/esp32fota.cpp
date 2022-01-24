@@ -318,13 +318,13 @@ void esp32FOTA::execOTA()
 }
 
 bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
-    log_i("Payload type: %s", JSONDocument["type"].as<const char *>() );
 
     if(strcmp(JSONDocument["type"].as<const char *>(), _firmwareType.c_str()) != 0) {
+        log_i("Payload type in manifest %s doesn't match current firmware %s", JSONDocument["type"].as<const char *>(), _firmwareType.c_str() );
         log_i("Doesn't match type: %s", _firmwareType.c_str() );
         return false;  // Move to the next entry in the manifest
     }
-    log_i("Matches type: %s", _firmwareType.c_str() );
+    log_i("Payload type in manifest %s matches current firmware %s", JSONDocument["type"].as<const char *>(), _firmwareType.c_str() );
 
     semver_free(&_payloadVersion);
     if(JSONDocument["version"].is<uint16_t>()) {
@@ -393,62 +393,71 @@ bool esp32FOTA::execHTTPcheck()
         return false;  // WiFi not connected
     }
 
-        HTTPClient http;
-        WiFiClientSecure client;
+    HTTPClient http;
+    WiFiClientSecure client;
 
-        if( useURL.substring( 0, 5 ) == "https" ) {
-            if (!_allow_insecure_https) {
-                // If the checkURL is https load the root-CA and connect with that
-                log_i( "Loading root_ca.pem" );
-                File root_ca_file = SPIFFS.open( "/root_ca.pem" );
-                if( !root_ca_file ) {
-                    log_e( "Could not open root_ca.pem" );
-                    return false;
-                }
-                {
-                    std::string root_ca = "";
-                    while( root_ca_file.available() ){
-                        root_ca.push_back( root_ca_file.read() );
-                    }
-                    root_ca_file.close();
-                    http.begin( useURL, root_ca.c_str() );
-                }
-            } else {
-                // We're downloading from a secure port, but we don't want to validate the root cert.
-                client.setInsecure();
-                http.begin(client, useURL);
-            }
-        } else {
-            http.begin(useURL);         //Specify the URL
-        }
-        int httpCode = http.GET();  //Make the request
-
-        if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {  //Check is a file was returned
-
-            String payload = http.getString();
-
-            int str_len = payload.length() + 1;
-            char JSONMessage[str_len];
-            payload.toCharArray(JSONMessage, str_len);
-
-            StaticJsonDocument<300> JSONDocument;  //Memory pool
-            DeserializationError err = deserializeJson(JSONDocument, JSONMessage);
-
-            http.end();  // We're done with HTTP - free the resources
-
-            if (err) {  //Check for errors in parsing
-                log_e("Parsing failed");
+    if( useURL.substring( 0, 5 ) == "https" ) {
+        if (!_allow_insecure_https) {
+            // If the checkURL is https load the root-CA and connect with that
+            log_i( "Loading root_ca.pem" );
+            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+            if( !root_ca_file ) {
+                log_e( "Could not open root_ca.pem" );
                 return false;
             }
-
-            if(checkJSONManifest(JSONDocument.as<JsonVariant>())) {
-                return true;
+            {
+                std::string root_ca = "";
+                while( root_ca_file.available() ){
+                    root_ca.push_back( root_ca_file.read() );
+                }
+                root_ca_file.close();
+                http.begin( useURL, root_ca.c_str() );
             }
-
-            return false; // We didn't get a hit against the above, return false
         } else {
-            log_e("Error on HTTP request");
+            // We're downloading from a secure port, but we don't want to validate the root cert.
+            client.setInsecure();
+            http.begin(client, useURL);
         }
+    } else {
+        http.begin(useURL);         //Specify the URL
+    }
+    int httpCode = http.GET();  //Make the request
+
+    if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {  //Check is a file was returned
+
+        String payload = http.getString();
+
+        int str_len = payload.length() + 1;
+        char JSONMessage[str_len];
+        payload.toCharArray(JSONMessage, str_len);
+
+        DynamicJsonDocument JSONResult(2048);
+        DeserializationError err = deserializeJson(JSONResult, JSONMessage);
+
+        http.end();  // We're done with HTTP - free the resources
+
+        if (err) {  //Check for errors in parsing
+            log_e("Parsing failed");
+            return false;
+        }
+
+        if (JSONResult.is<JsonArray>()) {
+            // We already received an array of multiple firmware types
+            JsonArray arr = JSONResult.as<JsonArray>();
+            for (JsonVariant JSONDocument : arr) {
+                if(checkJSONManifest(JSONDocument)) {
+                    return true;
+                }
+            }
+        } else if (JSONResult.is<JsonObject>()) {
+            if(checkJSONManifest(JSONResult.as<JsonVariant>()))
+                return true;
+        }
+
+        return false; // We didn't get a hit against the above, return false
+    } else {
+        log_e("Error on HTTP request");
+        http.end();
         return false;
     }
 }
