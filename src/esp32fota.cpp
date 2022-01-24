@@ -32,10 +32,10 @@
 
 #include <WiFiClientSecure.h>
 
-esp32FOTA::esp32FOTA(String firwmareType, int firwmareVersion, boolean validate )
+esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate)
 {
-    _firwmareType = firwmareType;
-    _firwmareVersion = firwmareVersion;
+    _firmwareType = firmwareType;
+    _firmwareVersion = firmwareVersion;
     _check_sig = validate;
     useDeviceID = false;
 }
@@ -338,7 +338,7 @@ bool esp32FOTA::execHTTPcheck()
 
             if (err) {  //Check for errors in parsing
                 log_e("Parsing failed");
-                delay(5000);
+                http.end();
                 return false;
             }
 
@@ -357,7 +357,7 @@ bool esp32FOTA::execHTTPcheck()
 
             String fwtype(pltype);
 
-            if (plversion > _firwmareVersion && fwtype == _firwmareType) {
+            if (plversion > _firmwareVersion && fwtype == _firmwareType) {
                 http.end();
                 return true;
             }
