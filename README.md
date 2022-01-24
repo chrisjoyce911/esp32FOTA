@@ -35,7 +35,7 @@ You can supply http or https URLs to the checkURL. If you are using https, you n
 
 ### Hosted JSON
 
-This is hosted by a webserver and contains information about the latest firmware
+This is hosted by a webserver and contains information about the latest firmware:
 
 ```json
 {
@@ -44,6 +44,17 @@ This is hosted by a webserver and contains information about the latest firmware
     "host": "192.168.0.100",
     "port": 80,
     "bin": "/fota/esp32-fota-http-2.bin",
+    "check_signature": true
+}
+```
+
+Version information can be either a single number or a semantic version string. Alternatively, a full URL path can be provided:
+
+```json
+{
+    "type": "esp32-fota-http",
+    "version": "2.5.1",
+    "url": "http://192.168.0.100/fota/esp32-fota-http-2.bin",
     "check_signature": true
 }
 ```
@@ -76,7 +87,7 @@ In this example a version 1  of 'esp32-fota-http' is in use, it would be updated
 const char *ssid = "";
 const char *password = "";
 
-esp32FOTA esp32FOTA("esp32-fota-http", 1);
+esp32FOTA esp32FOTA("esp32-fota-http", "1.0.0");
 
 void setup()
 {
@@ -137,3 +148,8 @@ On the next update-check the ESP32 will download the `firmware.img` extract the 
 [issue 15]: https://github.com/chrisjoyce911/esp32FOTA/issues/15
 [issues 8]: https://github.com/chrisjoyce911/esp32FOTA/issues/8
 [issue 65]: https://github.com/chrisjoyce911/esp32FOTA/issues/65
+
+
+### Libraries
+
+This relies on [semver.c by h2non](https://github.com/h2non/semver.c) for semantic versioning support. semver.c is licensed under [MIT](https://github.com/h2non/semver.c/blob/master/LICENSE).

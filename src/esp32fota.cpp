@@ -35,10 +35,39 @@
 esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate, boolean allow_insecure_https)
 {
     _firmwareType = firmwareType;
-    _firmwareVersion = firmwareVersion;
+    _firmwareVersion = semver_t{firmwareVersion};
     _check_sig = validate;
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
+
+    char version_no[256] = {'\0'};     // If we are passed firmwareVersion as an int, we're assuming it's a major version
+    semver_render(&_firmwareVersion, version_no);
+    log_i("Current firmware version: %s", version_no );
+
+}
+
+esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolean validate, boolean allow_insecure_https)
+{
+    if (semver_parse(firmwareSemanticVersion.c_str(), &_firmwareVersion)) {
+        log_e( "Invalid semver string %s passed to constructor. Defaulting to 0", firmwareSemanticVersion.c_str() );
+        _firmwareVersion = semver_t {0};
+    }
+
+    _firmwareType = firmwareType;
+    _check_sig = validate;
+    _allow_insecure_https = allow_insecure_https;
+    useDeviceID = false;
+
+    char version_no[256] = {'\0'};
+    semver_render(&_firmwareVersion, version_no);
+    log_i("Current firmware version: %s", version_no );
+
+}
+
+
+esp32FOTA::~esp32FOTA() {
+    semver_free(&_firmwareVersion);
+    semver_free(&_payloadVersion);
 }
 
 // Check file signature
@@ -153,10 +182,10 @@ void esp32FOTA::execOTA()
     WiFiClientSecure client;
     //http.setConnectTimeout( 1000 );
     
-    log_i("Connecting to: %s:%i%s\r\n", _host.c_str(), _port, _bin.c_str() );
-    if( _port == 443 || _port == 4433 ) {
+    log_i("Connecting to: %s\r\n", _firmwareUrl.c_str() );
+    if( _firmwareUrl.substring( 0, 5 ) == "https" ) {
         if (!_allow_insecure_https) {
-            // If we're downloading from secure port use WifiClientSecure instead
+            // If we're downloading from secure URL use WifiClientSecure instead
             // and provide the root_ca.pem
             log_i( "Loading root_ca.pem" );
             //WiFiClientSecure client;
@@ -171,16 +200,15 @@ void esp32FOTA::execOTA()
                     root_ca.push_back( root_ca_file.read() );
                 }
                 root_ca_file.close();
-                //http.begin( String( "https://" ) + _host + _bin, root_ca.c_str() );
-                http.begin( String( "https://") + _host + ":" + String( _port ) + _bin, root_ca.c_str() );
+                http.begin( _firmwareUrl, root_ca.c_str() );
             }
         } else {
-            // We're downloading from a secure port, but we don't want to validate the root cert.
+            // We're downloading from a secure URL, but we don't want to validate the root cert.
             client.setInsecure();
-            http.begin(client, String( "https://") + _host + ":" + String( _port ) + _bin);
+            http.begin(client, _firmwareUrl);
         }
     } else {
-        http.begin( String( "http://" ) + _host + ":" + String( _port ) + _bin );
+        http.begin( _firmwareUrl );
     }
 
     const char* get_headers[] = { "Content-Length", "Content-type" };
@@ -199,7 +227,7 @@ void esp32FOTA::execOTA()
         // Connect to webserver failed
         // May be try?
         // Probably a choppy network?
-        log_i( "Connection to %s failed. Please check your setup", _host );
+        log_i( "Connection to %s failed. Please check your setup", _firmwareUrl );
         // retry??
         // execOTA();
     }
@@ -304,8 +332,6 @@ bool esp32FOTA::execHTTPcheck()
         useURL = checkURL;
     }
 
-    _port = 80;
-
     log_i("Getting HTTP: %s",useURL.c_str());
     log_i("------");
     if ((WiFi.status() == WL_CONNECTED)) {  //Check the current connection status
@@ -358,26 +384,56 @@ bool esp32FOTA::execHTTPcheck()
             }
 
             const char *pltype = JSONDocument["type"];
-            int plversion = JSONDocument["version"];
-            const char *plhost = JSONDocument["host"];
-            _port = JSONDocument["port"];
-            const char *plbin = JSONDocument["bin"];
-            _payloadVersion = plversion;            
 
-            String jshost(plhost);
-            String jsbin(plbin);
+            semver_free(&_payloadVersion);
+            if(JSONDocument["version"].is<uint16_t>()) {
+                log_i("JSON version: %d (int)", JSONDocument["version"].as<uint16_t>());
+                _payloadVersion = semver_t {JSONDocument["version"].as<uint16_t>()};
+            } else if (JSONDocument["version"].is<const char *>()) {
+                log_i("JSON version: %s (semver)", JSONDocument["version"].as<const char *>() );
+                if (semver_parse(JSONDocument["version"].as<const char *>(), &_payloadVersion)) {
+                    log_e( "Invalid semver string received in manifest. Defaulting to 0" );
+                    _payloadVersion = semver_t {0};
+                }
+            } else {
+                log_e( "Invalid semver format received in manifest. Defaulting to 0" );
+                _payloadVersion = semver_t {0};
+            }
 
-            _host = jshost;
-            _bin = jsbin;
+            char version_no[256] = {'\0'};
+            semver_render(&_payloadVersion, version_no);
+            log_i("Payload firmware version: %s", version_no );
+
+
+            if(JSONDocument["url"].is<String>()) {
+                // We were provided a complete URL in the JSON manifest - use it
+                _firmwareUrl = JSONDocument["url"].as<String>();
+                if(JSONDocument["host"].is<String>())  // If the manifest provides both, warn the user
+                    log_w("Manifest provides both url and host - Using URL");
+            } else if (JSONDocument["host"].is<String>() && JSONDocument["port"].is<uint16_t>() && JSONDocument["bin"].is<String>()){
+                // We were provided host/port/bin format - Build the URL
+                if( JSONDocument["port"].as<uint16_t>() == 443 || JSONDocument["port"].as<uint16_t>() == 4433 )
+                    _firmwareUrl = String( "https://");
+                else
+                    _firmwareUrl = String( "http://" );
+
+                _firmwareUrl += JSONDocument["host"].as<String>() + ":" + String( JSONDocument["port"].as<uint16_t>() ) + JSONDocument["bin"].as<String>();
+
+            } else {
+                // JSON was malformed - no firmware target was provided
+                log_e("JSON manifest was missing both 'url' and 'host'/'port'/'bin' keys");
+                http.end();
+                return false;
+            }
+
 
             String fwtype(pltype);
 
-            if (plversion > _firmwareVersion && fwtype == _firmwareType) {
+            if (semver_compare(_payloadVersion, _firmwareVersion) == 1 && fwtype == _firmwareType) {
                 http.end();
                 return true;
             }
-        }
-        else {
+        } else {
             log_e("Error on HTTP request");
         }
         http.end();  //Free the resources
@@ -396,19 +452,51 @@ String esp32FOTA::getDeviceID()
     return thisID;
 }
 
-// Force a firmware update regartless on current version
-void esp32FOTA::forceUpdate(String firmwareHost, int firmwarePort, String firmwarePath, boolean validate )
+// Force a firmware update regardless on current version
+void esp32FOTA::forceUpdate(String firmwareURL, boolean validate )
 {
-    _host = firmwareHost;
-    _bin = firmwarePath;
-    _port = firmwarePort;
+    _firmwareUrl = firmwareURL;
     _check_sig = validate;
     execOTA();
 }
+
+void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate )
+{
+    String firmwareURL;
+
+    if( firmwarePort == 443 || firmwarePort == 4433 )
+        firmwareURL = String( "https://");
+    else
+        firmwareURL = String( "http://" );
+    firmwareURL += firmwareHost + ":" + String( firmwarePort ) + firmwarePath;
+
+    forceUpdate(firmwareURL, validate);
+}
+
+void esp32FOTA::forceUpdate(boolean validate )
+{
+    // Forces an update from a manifest, ignoring the version check
+    if(!execHTTPcheck()) {
+        if (!_firmwareUrl) {
+            // execHTTPcheck returns false if either the manifest is malformed or if the version isn't
+            // an upgrade. If _firmwareUrl isn't set, however, we can't force an upgrade. 
+            log_e("forceUpdate called, but unable to get _firmwareUrl from manifest via execHTTPcheck.");
+            return;
+        }
+    }
+    _check_sig = validate;
+    execOTA();
+}
+
 
 /**
  * This function return the new version of new firmware
  */
 int esp32FOTA::getPayloadVersion(){
-    return _payloadVersion;
+    log_w( "int esp32FOTA::getPayloadVersion() only returns the major version from semantic version strings. Use void esp32FOTA::getPayloadVersion(char * version_string) instead!" );
+    return _payloadVersion.major;
+}
+
+void esp32FOTA::getPayloadVersion(char * version_string){
+    semver_render(&_payloadVersion, version_string);
 }
