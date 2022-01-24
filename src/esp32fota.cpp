@@ -317,6 +317,61 @@ void esp32FOTA::execOTA()
     }
 }
 
+bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
+    log_i("Payload type: %s", JSONDocument["type"].as<const char *>() );
+
+    if(strcmp(JSONDocument["type"].as<const char *>(), _firmwareType.c_str()) != 0) {
+        log_i("Doesn't match type: %s", _firmwareType.c_str() );
+        return false;  // Move to the next entry in the manifest
+    }
+    log_i("Matches type: %s", _firmwareType.c_str() );
+
+    semver_free(&_payloadVersion);
+    if(JSONDocument["version"].is<uint16_t>()) {
+        log_i("JSON version: %d (int)", JSONDocument["version"].as<uint16_t>());
+        _payloadVersion = semver_t {JSONDocument["version"].as<uint16_t>()};
+    } else if (JSONDocument["version"].is<const char *>()) {
+        log_i("JSON version: %s (semver)", JSONDocument["version"].as<const char *>() );
+        if (semver_parse(JSONDocument["version"].as<const char *>(), &_payloadVersion)) {
+            log_e( "Invalid semver string received in manifest. Defaulting to 0" );
+            _payloadVersion = semver_t {0};
+        }
+    } else {
+        log_e( "Invalid semver format received in manifest. Defaulting to 0" );
+        _payloadVersion = semver_t {0};
+    }
+
+    char version_no[256] = {'\0'};
+    semver_render(&_payloadVersion, version_no);
+    log_i("Payload firmware version: %s", version_no );
+
+
+    if(JSONDocument["url"].is<String>()) {
+        // We were provided a complete URL in the JSON manifest - use it
+        _firmwareUrl = JSONDocument["url"].as<String>();
+        if(JSONDocument["host"].is<String>())  // If the manifest provides both, warn the user
+            log_w("Manifest provides both url and host - Using URL");
+    } else if (JSONDocument["host"].is<String>() && JSONDocument["port"].is<uint16_t>() && JSONDocument["bin"].is<String>()){
+        // We were provided host/port/bin format - Build the URL
+        if( JSONDocument["port"].as<uint16_t>() == 443 || JSONDocument["port"].as<uint16_t>() == 4433 )
+            _firmwareUrl = String( "https://");
+        else
+            _firmwareUrl = String( "http://" );
+
+        _firmwareUrl += JSONDocument["host"].as<String>() + ":" + String( JSONDocument["port"].as<uint16_t>() ) + JSONDocument["bin"].as<String>();
+
+    } else {
+        // JSON was malformed - no firmware target was provided
+        log_e("JSON manifest was missing both 'url' and 'host'/'port'/'bin' keys");
+        return false;
+    }
+
+    if (semver_compare(_payloadVersion, _firmwareVersion) == 1) {
+        return true;
+    }
+    return false;
+}
+
 bool esp32FOTA::execHTTPcheck()
 {
 
@@ -383,56 +438,13 @@ bool esp32FOTA::execHTTPcheck()
                 return false;
             }
 
-            const char *pltype = JSONDocument["type"];
-
-            semver_free(&_payloadVersion);
-            if(JSONDocument["version"].is<uint16_t>()) {
-                log_i("JSON version: %d (int)", JSONDocument["version"].as<uint16_t>());
-                _payloadVersion = semver_t {JSONDocument["version"].as<uint16_t>()};
-            } else if (JSONDocument["version"].is<const char *>()) {
-                log_i("JSON version: %s (semver)", JSONDocument["version"].as<const char *>() );
-                if (semver_parse(JSONDocument["version"].as<const char *>(), &_payloadVersion)) {
-                    log_e( "Invalid semver string received in manifest. Defaulting to 0" );
-                    _payloadVersion = semver_t {0};
-                }
-            } else {
-                log_e( "Invalid semver format received in manifest. Defaulting to 0" );
-                _payloadVersion = semver_t {0};
-            }
-
-            char version_no[256] = {'\0'};
-            semver_render(&_payloadVersion, version_no);
-            log_i("Payload firmware version: %s", version_no );
-
-
-            if(JSONDocument["url"].is<String>()) {
-                // We were provided a complete URL in the JSON manifest - use it
-                _firmwareUrl = JSONDocument["url"].as<String>();
-                if(JSONDocument["host"].is<String>())  // If the manifest provides both, warn the user
-                    log_w("Manifest provides both url and host - Using URL");
-            } else if (JSONDocument["host"].is<String>() && JSONDocument["port"].is<uint16_t>() && JSONDocument["bin"].is<String>()){
-                // We were provided host/port/bin format - Build the URL
-                if( JSONDocument["port"].as<uint16_t>() == 443 || JSONDocument["port"].as<uint16_t>() == 4433 )
-                    _firmwareUrl = String( "https://");
-                else
-                    _firmwareUrl = String( "http://" );
-
-                _firmwareUrl += JSONDocument["host"].as<String>() + ":" + String( JSONDocument["port"].as<uint16_t>() ) + JSONDocument["bin"].as<String>();
-
-            } else {
-                // JSON was malformed - no firmware target was provided
-                log_e("JSON manifest was missing both 'url' and 'host'/'port'/'bin' keys");
-                http.end();
-                return false;
-            }
-
-
-            String fwtype(pltype);
-
-            if (semver_compare(_payloadVersion, _firmwareVersion) == 1 && fwtype == _firmwareType) {
+            if(checkJSONManifest(JSONDocument.as<JsonVariant>())) {
                 http.end();
                 return true;
             }
+
+            http.end();
+            return false; // We didn't get a hit against the above, return false
         } else {
             log_e("Error on HTTP request");
         }
