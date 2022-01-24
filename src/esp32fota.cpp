@@ -374,7 +374,6 @@ bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
 
 bool esp32FOTA::execHTTPcheck()
 {
-
     String useURL;
 
     if (useDeviceID)
@@ -389,7 +388,10 @@ bool esp32FOTA::execHTTPcheck()
 
     log_i("Getting HTTP: %s",useURL.c_str());
     log_i("------");
-    if ((WiFi.status() == WL_CONNECTED)) {  //Check the current connection status
+    if ((WiFi.status() != WL_CONNECTED)) {  //Check the current connection status
+        log_w("WiFi not connected - skipping HTTP check");
+        return false;  // WiFi not connected
+    }
 
         HTTPClient http;
         WiFiClientSecure client;
@@ -432,26 +434,23 @@ bool esp32FOTA::execHTTPcheck()
             StaticJsonDocument<300> JSONDocument;  //Memory pool
             DeserializationError err = deserializeJson(JSONDocument, JSONMessage);
 
+            http.end();  // We're done with HTTP - free the resources
+
             if (err) {  //Check for errors in parsing
                 log_e("Parsing failed");
-                http.end();
                 return false;
             }
 
             if(checkJSONManifest(JSONDocument.as<JsonVariant>())) {
-                http.end();
                 return true;
             }
 
-            http.end();
             return false; // We didn't get a hit against the above, return false
         } else {
             log_e("Error on HTTP request");
         }
-        http.end();  //Free the resources
         return false;
     }
-    return false;
 }
 
 String esp32FOTA::getDeviceID()
