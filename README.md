@@ -13,8 +13,9 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 - [x] Force firmware update [issues 8]
 - [x] https support [#26][i26] ( Thanks to @fbambusi )
 - [x] Signature check of downloaded firmware-image [issue 65]
-- [ ] Multi firmware update record
-- [ ] Stream update (e.g. MQTT or other)
+- [x] https or https
+- [x] Signature verification
+- [x] Semantic versioning support
 - [ ] Checking for update via bin headers [issue 15]
 
 ## How it works
@@ -153,3 +154,10 @@ On the next update-check the ESP32 will download the `firmware.img` extract the 
 ### Libraries
 
 This relies on [semver.c by h2non](https://github.com/h2non/semver.c) for semantic versioning support. semver.c is licensed under [MIT](https://github.com/h2non/semver.c/blob/master/LICENSE).
+
+### Thanks to 
+
+* @nuclearcat
+* @thinksilicon
+* @nuclearcat 
+* @hpsaturn 
