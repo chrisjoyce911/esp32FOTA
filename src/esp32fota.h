@@ -23,7 +23,7 @@
 class esp32FOTA
 {
 public:
-  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false );
+  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false, boolean allow_insecure_https = false );
   void forceUpdate(String firwmareHost, int firwmarePort, String firwmarePath, boolean validate = false );
   void execOTA();
   bool execHTTPcheck();
@@ -41,6 +41,7 @@ private:
   String _bin;
   int _port;
   boolean _check_sig;
+  boolean _allow_insecure_https;
 
 };
 
