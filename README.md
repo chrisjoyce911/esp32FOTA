@@ -84,11 +84,12 @@ In this example a version 1  of 'esp32-fota-http' is in use, it would be updated
 ```cpp
 #include <esp32fota.h>
 #include <WiFi.h>
+#include <SPIFFS.h>
 
 const char *ssid = "";
 const char *password = "";
 
-esp32FOTA esp32FOTA("esp32-fota-http", "1.0.0");
+esp32FOTA esp32FOTA("esp32-fota-http", "1.0.0", SPIFFS);
 
 void setup()
 {

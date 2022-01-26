@@ -8,7 +8,7 @@
    Author: Moritz Meintker <https://thinksilicon.de>
    Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
             now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS) to verify the
+            use the root_ca.pem (needs to be provided via SPIFFS/LITTLEFS) to verify the
             server certificate and then download the ressource through an encrypted
             connection unless you set the allow_insecure_https option.
             Otherwise it will just use plain HTTP which will still offer to sign
@@ -22,7 +22,6 @@
 #include <Update.h>
 #include "ArduinoJson.h"
 #include <FS.h>
-#include <SPIFFS.h>
 
 
 #include "mbedtls/pk.h"
@@ -32,13 +31,10 @@
 
 #include <WiFiClientSecure.h>
 
-esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate, boolean allow_insecure_https)
+esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https )
+:useDeviceID(false), _fs(fs), _firmwareType(firmwareType), _firmwareVersion(semver_t{firmwareVersion}), _check_sig(validate),_allow_insecure_https(allow_insecure_https)
 {
-    _firmwareType = firmwareType;
-    _firmwareVersion = semver_t{firmwareVersion};
-    _check_sig = validate;
-    _allow_insecure_https = allow_insecure_https;
-    useDeviceID = false;
+    // _firmwareVersion = semver_t{firmwareVersion};
 
     char version_no[256] = {'\0'};     // If we are passed firmwareVersion as an int, we're assuming it's a major version
     semver_render(&_firmwareVersion, version_no);
@@ -46,22 +42,18 @@ esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate,
 
 }
 
-esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolean validate, boolean allow_insecure_https)
+
+esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https )
+:useDeviceID(false), _fs(fs), _firmwareType(firmwareType), _check_sig(validate),_allow_insecure_https(allow_insecure_https)
 {
     if (semver_parse(firmwareSemanticVersion.c_str(), &_firmwareVersion)) {
         log_e( "Invalid semver string %s passed to constructor. Defaulting to 0", firmwareSemanticVersion.c_str() );
         _firmwareVersion = semver_t {0};
     }
 
-    _firmwareType = firmwareType;
-    _check_sig = validate;
-    _allow_insecure_https = allow_insecure_https;
-    useDeviceID = false;
-
     char version_no[256] = {'\0'};
     semver_render(&_firmwareVersion, version_no);
     log_i("Current firmware version: %s", version_no );
-
 }
 
 
@@ -79,7 +71,7 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
     mbedtls_md_context_t rsa;
 
     { // Open RSA public key:
-        File public_key_file = SPIFFS.open( "/rsa_key.pub" );
+        fs::File public_key_file = _fs.open( "/rsa_key.pub" );
         if( !public_key_file ) {
             log_e( "Failed to open rsa_key.pub for reading" );
             return false;
@@ -189,7 +181,7 @@ void esp32FOTA::execOTA()
             // and provide the root_ca.pem
             log_i( "Loading root_ca.pem" );
             //WiFiClientSecure client;
-            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+            fs::File root_ca_file = _fs.open( "/root_ca.pem" );
             if( !root_ca_file ) {
                 log_e( "Could not open root_ca.pem" );
                 return;
@@ -343,7 +335,7 @@ bool esp32FOTA::execHTTPcheck()
             if (!_allow_insecure_https) {
                 // If the checkURL is https load the root-CA and connect with that
                 log_i( "Loading root_ca.pem" );
-                File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+                fs::File root_ca_file = _fs.open( "/root_ca.pem" );
                 if( !root_ca_file ) {
                     log_e( "Could not open root_ca.pem" );
                     return false;

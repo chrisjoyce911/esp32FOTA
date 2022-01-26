@@ -8,7 +8,7 @@
    Author: Moritz Meintker <https://thinksilicon.de>
    Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
             now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS) to verify the
+            use the root_ca.pem (needs to be provided via SPIFFS/LittleFS) to verify the
             server certificate and then download the ressource through an encrypted
             connection.
             Otherwise it will just use plain HTTP which will still offer to sign
@@ -19,13 +19,17 @@
 #define esp32fota_h
 
 #include <Arduino.h>
+#include <FS.h>
 #include "semver/semver.h"
 
 class esp32FOTA
 {
+  using File = fs::File;
+  using FS = fs::FS;
+
 public:
-  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false, boolean allow_insecure_https = false );
-  esp32FOTA(String firwmareType, String firmwareSemanticVersion, boolean validate = false, boolean allow_insecure_https = false );
+  esp32FOTA(String firwmareType, int firwmareVersion, const fs::FS& fs, boolean validate = false, boolean allow_insecure_https = false  );
+  esp32FOTA(String firwmareType, String firmwareSemanticVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https );  
   ~esp32FOTA();
   void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate );
   void forceUpdate(String firmwareURL, boolean validate );
@@ -39,6 +43,7 @@ public:
   bool validate_sig( unsigned char *signature, uint32_t firmware_size );
 
 private:
+  FS _fs;
   String getDeviceID();
   String _firmwareType;
   semver_t _firmwareVersion = {0};

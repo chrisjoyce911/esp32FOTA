@@ -16,13 +16,14 @@
 
 #include <esp32fota.h>
 #include <WiFi.h>
+#include <SPIFFS.h>
 
 // Change to your WiFi credentials
 const char *ssid = "";
 const char *password = "";
 
-// esp32fota esp32fota("<Type of Firmware for this device>", <this version>, <validate signature>);
-esp32FOTA esp32FOTA("esp32-fota-http", 1, false);
+// esp32FOTA esp32FOTA("<Type of Firmware for this device>", <this version>, <filesystem>, <validate signature>);
+esp32FOTA esp32FOTA("esp32-fota-http", 1, SPIFFS, false);
 
 void setup()
 {
