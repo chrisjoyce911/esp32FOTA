@@ -20,6 +20,7 @@
 
 #include <Arduino.h>
 #include <FS.h>
+#include <ArduinoJson.h>
 #include "semver/semver.h"
 
 class esp32FOTA
@@ -51,6 +52,7 @@ private:
   String _firmwareUrl;
   boolean _check_sig;
   boolean _allow_insecure_https;
+  bool checkJSONManifest(JsonVariant JSONDocument);
 
 };
 
