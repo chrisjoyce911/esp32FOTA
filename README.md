@@ -58,6 +58,24 @@ Version information can be either a single number or a semantic version string. 
 }
 ```
 
+A single JSON file can provide information on multiple firmware types by combining them together into an array. When this is loaded, the firmware manifest with a type matching the one passed to the esp32FOTA constructor will be selected:
+
+```json
+[
+   {
+      "type":"esp32-fota-http",
+      "version":"0.0.2",
+      "url":"http://192.168.0.100/fota/esp32-fota-http-2.bin"
+   },
+   {
+      "type":"esp32-other-hardware",
+      "version":"0.0.3",
+      "url":"http://192.168.0.100/fota/esp32-other-hardware.bin"
+   }
+]
+```
+
+
 #### Firmware types
 
 Types are used to compare with the current loaded firmware, this is used to make sure that when loaded, the device will still do the intended job.

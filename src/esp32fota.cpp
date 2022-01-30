@@ -317,9 +317,63 @@ void esp32FOTA::execOTA()
     }
 }
 
+bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
+
+    if(strcmp(JSONDocument["type"].as<const char *>(), _firmwareType.c_str()) != 0) {
+        log_i("Payload type in manifest %s doesn't match current firmware %s", JSONDocument["type"].as<const char *>(), _firmwareType.c_str() );
+        log_i("Doesn't match type: %s", _firmwareType.c_str() );
+        return false;  // Move to the next entry in the manifest
+    }
+    log_i("Payload type in manifest %s matches current firmware %s", JSONDocument["type"].as<const char *>(), _firmwareType.c_str() );
+
+    semver_free(&_payloadVersion);
+    if(JSONDocument["version"].is<uint16_t>()) {
+        log_i("JSON version: %d (int)", JSONDocument["version"].as<uint16_t>());
+        _payloadVersion = semver_t {JSONDocument["version"].as<uint16_t>()};
+    } else if (JSONDocument["version"].is<const char *>()) {
+        log_i("JSON version: %s (semver)", JSONDocument["version"].as<const char *>() );
+        if (semver_parse(JSONDocument["version"].as<const char *>(), &_payloadVersion)) {
+            log_e( "Invalid semver string received in manifest. Defaulting to 0" );
+            _payloadVersion = semver_t {0};
+        }
+    } else {
+        log_e( "Invalid semver format received in manifest. Defaulting to 0" );
+        _payloadVersion = semver_t {0};
+    }
+
+    char version_no[256] = {'\0'};
+    semver_render(&_payloadVersion, version_no);
+    log_i("Payload firmware version: %s", version_no );
+
+
+    if(JSONDocument["url"].is<String>()) {
+        // We were provided a complete URL in the JSON manifest - use it
+        _firmwareUrl = JSONDocument["url"].as<String>();
+        if(JSONDocument["host"].is<String>())  // If the manifest provides both, warn the user
+            log_w("Manifest provides both url and host - Using URL");
+    } else if (JSONDocument["host"].is<String>() && JSONDocument["port"].is<uint16_t>() && JSONDocument["bin"].is<String>()){
+        // We were provided host/port/bin format - Build the URL
+        if( JSONDocument["port"].as<uint16_t>() == 443 || JSONDocument["port"].as<uint16_t>() == 4433 )
+            _firmwareUrl = String( "https://");
+        else
+            _firmwareUrl = String( "http://" );
+
+        _firmwareUrl += JSONDocument["host"].as<String>() + ":" + String( JSONDocument["port"].as<uint16_t>() ) + JSONDocument["bin"].as<String>();
+
+    } else {
+        // JSON was malformed - no firmware target was provided
+        log_e("JSON manifest was missing both 'url' and 'host'/'port'/'bin' keys");
+        return false;
+    }
+
+    if (semver_compare(_payloadVersion, _firmwareVersion) == 1) {
+        return true;
+    }
+    return false;
+}
+
 bool esp32FOTA::execHTTPcheck()
 {
-
     String useURL;
 
     if (useDeviceID)
@@ -334,112 +388,78 @@ bool esp32FOTA::execHTTPcheck()
 
     log_i("Getting HTTP: %s",useURL.c_str());
     log_i("------");
-    if ((WiFi.status() == WL_CONNECTED)) {  //Check the current connection status
+    if ((WiFi.status() != WL_CONNECTED)) {  //Check the current connection status
+        log_w("WiFi not connected - skipping HTTP check");
+        return false;  // WiFi not connected
+    }
 
-        HTTPClient http;
-        WiFiClientSecure client;
+    HTTPClient http;
+    WiFiClientSecure client;
 
-        if( useURL.substring( 0, 5 ) == "https" ) {
-            if (!_allow_insecure_https) {
-                // If the checkURL is https load the root-CA and connect with that
-                log_i( "Loading root_ca.pem" );
-                File root_ca_file = SPIFFS.open( "/root_ca.pem" );
-                if( !root_ca_file ) {
-                    log_e( "Could not open root_ca.pem" );
-                    return false;
+    if( useURL.substring( 0, 5 ) == "https" ) {
+        if (!_allow_insecure_https) {
+            // If the checkURL is https load the root-CA and connect with that
+            log_i( "Loading root_ca.pem" );
+            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+            if( !root_ca_file ) {
+                log_e( "Could not open root_ca.pem" );
+                return false;
+            }
+            {
+                std::string root_ca = "";
+                while( root_ca_file.available() ){
+                    root_ca.push_back( root_ca_file.read() );
                 }
-                {
-                    std::string root_ca = "";
-                    while( root_ca_file.available() ){
-                        root_ca.push_back( root_ca_file.read() );
-                    }
-                    root_ca_file.close();
-                    http.begin( useURL, root_ca.c_str() );
-                }
-            } else {
-                // We're downloading from a secure port, but we don't want to validate the root cert.
-                client.setInsecure();
-                http.begin(client, useURL);
+                root_ca_file.close();
+                http.begin( useURL, root_ca.c_str() );
             }
         } else {
-            http.begin(useURL);         //Specify the URL
+            // We're downloading from a secure port, but we don't want to validate the root cert.
+            client.setInsecure();
+            http.begin(client, useURL);
         }
-        int httpCode = http.GET();  //Make the request
+    } else {
+        http.begin(useURL);         //Specify the URL
+    }
+    int httpCode = http.GET();  //Make the request
 
-        if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {  //Check is a file was returned
+    if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {  //Check is a file was returned
 
-            String payload = http.getString();
+        String payload = http.getString();
 
-            int str_len = payload.length() + 1;
-            char JSONMessage[str_len];
-            payload.toCharArray(JSONMessage, str_len);
+        int str_len = payload.length() + 1;
+        char JSONMessage[str_len];
+        payload.toCharArray(JSONMessage, str_len);
 
-            StaticJsonDocument<300> JSONDocument;  //Memory pool
-            DeserializationError err = deserializeJson(JSONDocument, JSONMessage);
+        DynamicJsonDocument JSONResult(2048);
+        DeserializationError err = deserializeJson(JSONResult, JSONMessage);
 
-            if (err) {  //Check for errors in parsing
-                log_e("Parsing failed");
-                http.end();
-                return false;
-            }
+        http.end();  // We're done with HTTP - free the resources
 
-            const char *pltype = JSONDocument["type"];
+        if (err) {  //Check for errors in parsing
+            log_e("Parsing failed");
+            return false;
+        }
 
-            semver_free(&_payloadVersion);
-            if(JSONDocument["version"].is<uint16_t>()) {
-                log_i("JSON version: %d (int)", JSONDocument["version"].as<uint16_t>());
-                _payloadVersion = semver_t {JSONDocument["version"].as<uint16_t>()};
-            } else if (JSONDocument["version"].is<const char *>()) {
-                log_i("JSON version: %s (semver)", JSONDocument["version"].as<const char *>() );
-                if (semver_parse(JSONDocument["version"].as<const char *>(), &_payloadVersion)) {
-                    log_e( "Invalid semver string received in manifest. Defaulting to 0" );
-                    _payloadVersion = semver_t {0};
+        if (JSONResult.is<JsonArray>()) {
+            // We already received an array of multiple firmware types
+            JsonArray arr = JSONResult.as<JsonArray>();
+            for (JsonVariant JSONDocument : arr) {
+                if(checkJSONManifest(JSONDocument)) {
+                    return true;
                 }
-            } else {
-                log_e( "Invalid semver format received in manifest. Defaulting to 0" );
-                _payloadVersion = semver_t {0};
             }
-
-            char version_no[256] = {'\0'};
-            semver_render(&_payloadVersion, version_no);
-            log_i("Payload firmware version: %s", version_no );
-
-
-            if(JSONDocument["url"].is<String>()) {
-                // We were provided a complete URL in the JSON manifest - use it
-                _firmwareUrl = JSONDocument["url"].as<String>();
-                if(JSONDocument["host"].is<String>())  // If the manifest provides both, warn the user
-                    log_w("Manifest provides both url and host - Using URL");
-            } else if (JSONDocument["host"].is<String>() && JSONDocument["port"].is<uint16_t>() && JSONDocument["bin"].is<String>()){
-                // We were provided host/port/bin format - Build the URL
-                if( JSONDocument["port"].as<uint16_t>() == 443 || JSONDocument["port"].as<uint16_t>() == 4433 )
-                    _firmwareUrl = String( "https://");
-                else
-                    _firmwareUrl = String( "http://" );
-
-                _firmwareUrl += JSONDocument["host"].as<String>() + ":" + String( JSONDocument["port"].as<uint16_t>() ) + JSONDocument["bin"].as<String>();
-
-            } else {
-                // JSON was malformed - no firmware target was provided
-                log_e("JSON manifest was missing both 'url' and 'host'/'port'/'bin' keys");
-                http.end();
-                return false;
-            }
-
-
-            String fwtype(pltype);
-
-            if (semver_compare(_payloadVersion, _firmwareVersion) == 1 && fwtype == _firmwareType) {
-                http.end();
+        } else if (JSONResult.is<JsonObject>()) {
+            if(checkJSONManifest(JSONResult.as<JsonVariant>()))
                 return true;
-            }
-        } else {
-            log_e("Error on HTTP request");
         }
-        http.end();  //Free the resources
+
+        return false; // We didn't get a hit against the above, return false
+    } else {
+        log_e("Error on HTTP request");
+        http.end();
         return false;
     }
-    return false;
 }
 
 String esp32FOTA::getDeviceID()
