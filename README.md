@@ -44,7 +44,7 @@ This is hosted by a webserver and contains information about the latest firmware
     "version": 2,
     "host": "192.168.0.100",
     "port": 80,
-    "bin": "/fota/esp32-fota-http-2.bin",
+    "bin": "/fota/esp32-fota-http-2.bin"
 }
 ```
 
@@ -54,7 +54,7 @@ Version information can be either a single number or a semantic version string. 
 {
     "type": "esp32-fota-http",
     "version": "2.5.1",
-    "url": "http://192.168.0.100/fota/esp32-fota-http-2.bin",
+    "url": "http://192.168.0.100/fota/esp32-fota-http-2.bin"
 }
 ```
 
@@ -65,7 +65,7 @@ A single JSON file can provide information on multiple firmware types by combini
    {
       "type":"esp32-fota-http",
       "version":"0.0.2",
-      "url":"http://192.168.0.100/fota/esp32-fota-http-2.bin",
+      "url":"http://192.168.0.100/fota/esp32-fota-http-2.bin"
    },
    {
       "type":"esp32-other-hardware",
@@ -140,7 +140,7 @@ void loop()
 You can now sign your firmware image with an RSA public/private key pair and have the ESP32 check if the signature is correct before
 it switches over to the new image.
 
-In order to use this feature, enable `check_signature` in `firmware.json`. Next create a key-pair to sign your firmware image:
+In order to use this feature just set the boolean `validate` to `true` in the constructor. Next create a key-pair to sign your firmware image:
 ```
 openssl genrsa -out priv_key.pem 4096
 openssl rsa -in priv_key.pem -pubout > rsa_key.pub
