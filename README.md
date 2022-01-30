@@ -45,7 +45,6 @@ This is hosted by a webserver and contains information about the latest firmware
     "host": "192.168.0.100",
     "port": 80,
     "bin": "/fota/esp32-fota-http-2.bin",
-    "check_signature": true
 }
 ```
 
@@ -56,7 +55,6 @@ Version information can be either a single number or a semantic version string. 
     "type": "esp32-fota-http",
     "version": "2.5.1",
     "url": "http://192.168.0.100/fota/esp32-fota-http-2.bin",
-    "check_signature": true
 }
 ```
 
@@ -68,7 +66,6 @@ A single JSON file can provide information on multiple firmware types by combini
       "type":"esp32-fota-http",
       "version":"0.0.2",
       "url":"http://192.168.0.100/fota/esp32-fota-http-2.bin",
-      "check_signature":true
    },
    {
       "type":"esp32-other-hardware",
