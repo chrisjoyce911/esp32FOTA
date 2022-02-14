@@ -22,8 +22,8 @@
 const char *ssid = "";
 const char *password = "";
 
-// esp32FOTA esp32FOTA("<Type of Firmware for this device>", <this version>, <filesystem>, <validate signature>);
-esp32FOTA esp32FOTA("esp32-fota-http", 1, SPIFFS, false);
+// esp32FOTA esp32FOTA("<Type of Firmware for this device>", <this version>, <filesystem>, <validate signature>, <allow insecure https>);
+esp32FOTA esp32FOTA("esp32-fota-http", 1, SPIFFS, false, false);
 
 void setup()
 {

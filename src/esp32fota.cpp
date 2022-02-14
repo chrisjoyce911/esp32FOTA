@@ -31,7 +31,7 @@
 
 #include <WiFiClientSecure.h>
 
-esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https )
+esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https)
 :useDeviceID(false), _fs(fs), _firmwareType(firmwareType), _firmwareVersion(semver_t{firmwareVersion}), _check_sig(validate),_allow_insecure_https(allow_insecure_https)
 {
     char version_no[256] = {'\0'};     // If we are passed firmwareVersion as an int, we're assuming it's a major version
@@ -40,8 +40,31 @@ esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, const fs::FS& fs,
 }
 
 
-esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https )
+esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https)
 :useDeviceID(false), _fs(fs), _firmwareType(firmwareType), _check_sig(validate),_allow_insecure_https(allow_insecure_https)
+{
+    if (semver_parse(firmwareSemanticVersion.c_str(), &_firmwareVersion)) {
+        log_e( "Invalid semver string %s passed to constructor. Defaulting to 0", firmwareSemanticVersion.c_str() );
+        _firmwareVersion = semver_t {0};
+    }
+
+    char version_no[256] = {'\0'};
+    semver_render(&_firmwareVersion, version_no);
+    log_i("Current firmware version: %s", version_no );
+}
+
+
+esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https, String url)
+:useDeviceID(false), checkURL(url), _fs(fs), _firmwareType(firmwareType), _firmwareVersion(semver_t{firmwareVersion}), _check_sig(validate),_allow_insecure_https(allow_insecure_https)
+{
+    char version_no[256] = {'\0'};     // If we are passed firmwareVersion as an int, we're assuming it's a major version
+    semver_render(&_firmwareVersion, version_no);
+    log_i("Current firmware version: %s", version_no );
+}
+
+
+esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https, String url)
+:useDeviceID(false), checkURL(url), _fs(fs), _firmwareType(firmwareType), _check_sig(validate),_allow_insecure_https(allow_insecure_https)
 {
     if (semver_parse(firmwareSemanticVersion.c_str(), &_firmwareVersion)) {
         log_e( "Invalid semver string %s passed to constructor. Defaulting to 0", firmwareSemanticVersion.c_str() );
@@ -441,7 +464,7 @@ bool esp32FOTA::execHTTPcheck()
                 }
             }
         } else if (JSONResult.is<JsonObject>()) {
-            if(checkJSONManifest(JSONResult.as<JsonVariant>()))
+            if(checkJSONManifest(JSONResult.as<JsonVariant>())) 
                 return true;
         }
 

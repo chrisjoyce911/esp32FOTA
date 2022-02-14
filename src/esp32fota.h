@@ -29,8 +29,11 @@ class esp32FOTA
   using FS = fs::FS;
 
 public:
-  esp32FOTA(String firwmareType, int firwmareVersion, const fs::FS& fs, boolean validate = false, boolean allow_insecure_https = false  );
-  esp32FOTA(String firwmareType, String firmwareSemanticVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https );  
+  esp32FOTA(String firwmareType, int firwmareVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https);
+  esp32FOTA(String firwmareType, String firmwareSemanticVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https);
+
+  esp32FOTA(String firwmareType, int firwmareVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https, String url);
+  esp32FOTA(String firwmareType, String firmwareSemanticVersion, const fs::FS& fs, boolean validate, boolean allow_insecure_https, String url);  
   ~esp32FOTA();
   void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate );
   void forceUpdate(String firmwareURL, boolean validate );
