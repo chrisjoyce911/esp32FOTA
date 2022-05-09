@@ -181,6 +181,7 @@ void esp32FOTA::execOTA()
     HTTPClient http;
     WiFiClientSecure client;
     //http.setConnectTimeout( 1000 );
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     
     log_i("Connecting to: %s\r\n", _firmwareUrl.c_str() );
     if( _firmwareUrl.substring( 0, 5 ) == "https" ) {
@@ -395,6 +396,7 @@ bool esp32FOTA::execHTTPcheck()
 
     HTTPClient http;
     WiFiClientSecure client;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
     if( useURL.substring( 0, 5 ) == "https" ) {
         if (!_allow_insecure_https) {
