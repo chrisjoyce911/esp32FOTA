@@ -18,6 +18,12 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 - [x] Semantic versioning support
 - [ ] Checking for update via bin headers [issue 15]
 
+## Features and Improvements added by Tuan_Karma (Anthony)
+
+- [x] Using LitleFS instead of (deprecated) [SPIFFS](https://arduino-esp8266.readthedocs.io/en/latest/filesystem.html#spiffs-and-littlefs)
+- [x] Code improvements at `semver/semver.c` to eliminate the Compiler's warnings: e.g. `warning: passing argument 3 of 'concat_num' discards 'const' qualifier ...`
+- ...
+
 ## How it works
 
 This library tries to access a JSON file hosted on a webserver, and reviews it to decide if a newer firmware has been published, if so it will download it and install it.
