@@ -20,8 +20,8 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 
 ## Features and Improvements added by Tuan_Karma (Anthony)
 
-- [ ] Using LitleFS instead of (deprecated) [SPIFFS](https://arduino-esp8266.readthedocs.io/en/latest/filesystem.html#spiffs-and-littlefs)
-- [ ] Code improvements to eliminate Compiler's warnings
+- [x] Using LitleFS instead of (deprecated) [SPIFFS](https://arduino-esp8266.readthedocs.io/en/latest/filesystem.html#spiffs-and-littlefs)
+- [x] Code improvements at `semver/semver.c` to eliminate the Compiler's warnings: e.g. `warning: passing argument 3 of 'concat_num' discards 'const' qualifier ...`
 
 ## How it works
 
