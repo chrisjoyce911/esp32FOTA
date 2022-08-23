@@ -8,7 +8,7 @@
    Author: Moritz Meintker <https://thinksilicon.de>
    Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
             now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS) to verify the
+            use the root_ca.pem (needs to be provided via LittleFS) to verify the
             server certificate and then download the ressource through an encrypted
             connection unless you set the allow_insecure_https option.
             Otherwise it will just use plain HTTP which will still offer to sign
@@ -22,7 +22,7 @@
 #include <Update.h>
 #include "ArduinoJson.h"
 #include <FS.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 
 
 #include "mbedtls/pk.h"
@@ -79,7 +79,7 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
     mbedtls_md_context_t rsa;
 
     { // Open RSA public key:
-        File public_key_file = SPIFFS.open( "/rsa_key.pub" );
+        File public_key_file = LittleFS.open( "/rsa_key.pub" );
         if( !public_key_file ) {
             log_e( "Failed to open rsa_key.pub for reading" );
             return false;
@@ -190,7 +190,7 @@ void esp32FOTA::execOTA()
             // and provide the root_ca.pem
             log_i( "Loading root_ca.pem" );
             //WiFiClientSecure client;
-            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+            File root_ca_file = LittleFS.open( "/root_ca.pem" );
             if( !root_ca_file ) {
                 log_e( "Could not open root_ca.pem" );
                 return;
@@ -402,7 +402,7 @@ bool esp32FOTA::execHTTPcheck()
         if (!_allow_insecure_https) {
             // If the checkURL is https load the root-CA and connect with that
             log_i( "Loading root_ca.pem" );
-            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+            File root_ca_file = LittleFS.open( "/root_ca.pem" );
             if( !root_ca_file ) {
                 log_e( "Could not open root_ca.pem" );
                 return false;

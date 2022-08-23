@@ -6,7 +6,7 @@
    Setup:
    Step 1 : Set your WiFi (ssid & password)
    Step 2 : set esp32fota()
-   Step 3 : Provide SPIFFS filesystem with root_ca.pem of your webserver
+   Step 3 : Provide LittleFS filesystem with root_ca.pem of your webserver
    
    Upload:
    Step 1 : Menu > Sketch > Export Compiled Library. The bin file will be saved in the sketch folder (Menu > Sketch > Show Sketch folder)
@@ -20,7 +20,7 @@
 #include <WiFi.h>
 
 #include <FS.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <esp32fota.h>
 
 
@@ -51,8 +51,8 @@ void setup_wifi()
 
 void setup()
 {
-  // Provide spiffs with root_ca.pem to validate server certificate
-  SPIFFS.begin(true);
+  // Provide LittleFS with root_ca.pem to validate server certificate
+  LittleFS.begin(true);
   
   esp32FOTA.checkURL = "https://server/fota/fota.json";
   Serial.begin(115200);

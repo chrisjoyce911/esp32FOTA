@@ -17,7 +17,7 @@
 #include <WiFi.h>
 
 #include <FS.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 
 #include <esp32fota.h>
 
@@ -34,8 +34,8 @@ void setup_wifi()
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
-  // Need to provide SPIFFS with rsa_key.pub inside.
-  SPIFFS.begin( true );
+  // Need to provide LittleFS with rsa_key.pub inside.
+  LittleFS.begin( true );
   
   WiFi.begin(ssid, password);
 

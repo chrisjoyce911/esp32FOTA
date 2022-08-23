@@ -19,7 +19,7 @@
 #include <WiFi.h>
 
 #include <FS.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <esp32fota.h>
 
 

@@ -8,7 +8,7 @@
    Author: Moritz Meintker <https://thinksilicon.de>
    Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
             now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS) to verify the
+            use the root_ca.pem (needs to be provided via LittleFS) to verify the
             server certificate and then download the ressource through an encrypted
             connection.
             Otherwise it will just use plain HTTP which will still offer to sign
