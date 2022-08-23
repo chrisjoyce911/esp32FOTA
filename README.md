@@ -20,7 +20,7 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 
 ## Features and Improvements added by Tuan_Karma (Anthony)
 
-- [ ] Using LitleFS instead of (deprecated) [SPIFFS](https://arduino-esp8266.readthedocs.io/en/latest/filesystem.html#spiffs-and-littlefs)
+- [x] Using LitleFS instead of (deprecated) [SPIFFS](https://arduino-esp8266.readthedocs.io/en/latest/filesystem.html#spiffs-and-littlefs)
 - [ ] Code improvements to eliminate Compiler's warnings
 
 ## How it works
