@@ -13,6 +13,13 @@
             connection unless you set the allow_insecure_https option.
             Otherwise it will just use plain HTTP which will still offer to sign
             your firmware image.
+
+    Date: 2022-08-24
+    Author: Nguyen Anh Tuan <https://github.com/tuan-karma>
+    Feature added: use the rsa_pub_key.h to embed the key into the fimrware. This feature helps:
+    - Preventing someone with physical access to your esp32-board altering the rsa_pub_key in the SPI flash memory 
+    hence compromising the next firmware update.
+    - Being able to update the rsa_key for the next version of your firmware conveniently. 
 */
 
 #include "esp32fota.h"
@@ -67,6 +74,25 @@ esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolea
 esp32FOTA::~esp32FOTA() {
     semver_free(&_firmwareVersion);
     semver_free(&_payloadVersion);
+}
+
+esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, const unsigned char* public_key, size_t public_key_length, boolean allow_insecure_https)
+{
+    if (semver_parse(firmwareSemanticVersion.c_str(), &_firmwareVersion)) {
+        log_e( "Invalid semver string %s passed to constructor. Defaulting to 0", firmwareSemanticVersion.c_str() );
+        _firmwareVersion = semver_t {0};
+    }
+
+    _firmwareType = firmwareType;
+    _public_key = public_key;
+    _public_key_length = public_key_length;
+    _allow_insecure_https = allow_insecure_https;
+    useDeviceID = false;
+
+    char version_no[256] = {'\0'};
+    semver_render(&_firmwareVersion, version_no);
+    log_i("Current firmware version: %s", version_no );
+
 }
 
 // Check file signature
@@ -171,6 +197,99 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
 
     return false;
 }
+
+// Check file signature
+// https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
+// https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
+bool esp32FOTA::validate_sig_internal( const unsigned char *signature, const uint32_t firmware_size ) {
+    int ret = 1;
+    mbedtls_pk_context pk;
+    mbedtls_md_context_t rsa;
+
+    { // Check RSA public key:
+        mbedtls_pk_init( &pk );
+        if( ( ret = mbedtls_pk_parse_public_key( &pk, _public_key, _public_key_length ) ) != 0 ) {
+            log_e( "Reading public key failed\n  ! mbedtls_pk_parse_public_key %d\n\n", ret );
+            return false;
+        }
+    }
+
+    if( !mbedtls_pk_can_do( &pk, MBEDTLS_PK_RSA ) ) {
+        log_e( "Public key is not an rsa key -0x%x\n\n", -ret );
+        return false;
+    }
+
+
+    const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
+   
+    if( !partition ) {
+        log_e( "Could not find update partition!" );
+        return false;
+    }
+
+    const mbedtls_md_info_t *mdinfo = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
+    mbedtls_md_init( &rsa );
+    mbedtls_md_setup( &rsa, mdinfo, 0 );
+    mbedtls_md_starts( &rsa );
+    
+    int bytestoread = SPI_FLASH_SEC_SIZE;
+    int bytesread = 0;
+    int size = firmware_size;
+
+    uint8_t *_buffer = (uint8_t*)malloc(SPI_FLASH_SEC_SIZE);
+    if(!_buffer){
+        log_e( "malloc failed" );
+        return false;
+    }
+    //Serial.printf( "Reading partition (%i sectors, sec_size: %i)\r\n", size, bytestoread );
+    while( bytestoread > 0 ) {
+      //Serial.printf( "Left: %i (%i)               \r", size, bytestoread );
+    
+      if( ESP.partitionRead( partition, bytesread, (uint32_t*)_buffer, bytestoread ) ) {
+	// Debug output for the purpose of comparing with file
+        /*for( int i = 0; i < bytestoread; i++ ) {
+          if( ( i % 16 ) == 0 ) {
+            Serial.printf( "\r\n0x%08x\t", i + bytesread );
+          }
+          Serial.printf( "%02x ", (uint8_t*)_buffer[i] );
+        }*/
+
+        mbedtls_md_update( &rsa, (uint8_t*)_buffer, bytestoread );
+
+        bytesread = bytesread + bytestoread;
+        size = size - bytestoread;
+
+        if( size <= SPI_FLASH_SEC_SIZE ) {
+            bytestoread = size;
+        }
+      } else {
+        log_e( "partitionRead failed!" );
+        return false;
+      }
+    }
+    free( _buffer );
+
+    unsigned char *hash = (unsigned char*)malloc( mdinfo->size );
+    mbedtls_md_finish( &rsa, hash );
+
+    ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256,
+        hash, mdinfo->size,
+	(unsigned char*)signature, 512
+    );
+
+    free( hash );
+    mbedtls_md_free( &rsa );
+    mbedtls_pk_free( &pk );
+    if( ret == 0 ) {
+        return true;
+    }
+    // overwrite the frist few bytes so this partition won't boot!
+
+    ESP.partitionEraseRange( partition, 0, ENCRYPTED_BLOCK_SIZE);
+
+    return false;
+}
+
 // OTA Logic
 void esp32FOTA::execOTA()
 {
@@ -272,6 +391,152 @@ void esp32FOTA::execOTA()
             {
                 if( _check_sig ) {
                    if( !validate_sig( signature, contentLength ) ) {
+                       
+                        const esp_partition_t* partition = esp_ota_get_running_partition();
+                        esp_ota_set_boot_partition( partition );
+
+                        log_e( "Signature check failed!" );
+                        http.end();
+                        ESP.restart();
+                        return;
+                   } else {
+                        log_i( "Signature OK" );
+                   }
+                }
+                Serial.println("OTA done!");
+                if (Update.isFinished())
+                {
+                    Serial.println("Update successfully completed. Rebooting.");
+                    http.end();
+                    ESP.restart();
+                }
+                else
+                {
+                    Serial.println("Update not finished? Something went wrong!");
+                }
+            }
+            else
+            {
+                Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+            }
+        }
+        else
+        {
+            // not enough space to begin OTA
+            // Understand the partitions and
+            // space availability
+            Serial.println("Not enough space to begin OTA");
+            http.end();
+        }
+    }
+    else
+    {
+        log_e("There was no content in the response");
+        http.end();
+    }
+}
+
+void esp32FOTA::execOTA_internal()
+{
+    int contentLength = 0;
+    bool isValidContentType = false;
+
+    HTTPClient http;
+    WiFiClientSecure client;
+    //http.setConnectTimeout( 1000 );
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    
+    log_i("Connecting to: %s\r\n", _firmwareUrl.c_str() );
+    if( _firmwareUrl.substring( 0, 5 ) == "https" ) {
+        if (!_allow_insecure_https) {
+            // If we're downloading from secure URL use WifiClientSecure instead
+            // and provide the root_ca.pem
+            log_i( "Loading root_ca.pem" );
+            //WiFiClientSecure client;
+            File root_ca_file = LittleFS.open( "/root_ca.pem" );
+            if( !root_ca_file ) {
+                log_e( "Could not open root_ca.pem" );
+                return;
+            }
+            {
+                std::string root_ca = "";
+                while( root_ca_file.available() ){
+                    root_ca.push_back( root_ca_file.read() );
+                }
+                root_ca_file.close();
+                http.begin( _firmwareUrl, root_ca.c_str() );
+            }
+        } else {
+            // We're downloading from a secure URL, but we don't want to validate the root cert.
+            client.setInsecure();
+            http.begin(client, _firmwareUrl);
+        }
+    } else {
+        http.begin( _firmwareUrl );
+    }
+
+    const char* get_headers[] = { "Content-Length", "Content-type" };
+    http.collectHeaders( get_headers, 2 );
+
+    int httpCode = http.GET();
+   
+    if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
+        contentLength = http.header( "Content-Length" ).toInt();
+        String contentType = http.header( "Content-type" );
+        if( contentType == "application/octet-stream" ) {
+            isValidContentType = true;
+            
+        }
+    } else {
+        // Connect to webserver failed
+        // May be try?
+        // Probably a choppy network?
+        log_i( "Connection to %s failed. Please check your setup", _firmwareUrl );
+        // retry??
+        // execOTA();
+    }
+
+       // Check what is the contentLength and if content type is `application/octet-stream`
+    log_i("contentLength : %i, isValidContentType : %s", contentLength, String(isValidContentType));
+
+    // check contentLength and content type
+    if( contentLength && isValidContentType ) {
+        WiFiClient& client = http.getStream();
+
+        if( _public_key ) {
+            // _public_key != nullptr --> need to check the signature
+            // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
+            contentLength = contentLength - 512;
+        }
+        // Check if there is enough to OTA Update
+        bool canBegin = Update.begin(contentLength);
+
+        // If yes, begin
+        if( canBegin ) {
+            unsigned char signature[512];
+            if( _public_key ) {
+               client.readBytes( signature, 512 );
+            }
+            Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!");
+            // No activity would appear on the Serial monitor
+            // So be patient. This may take 2 - 5mins to complete
+            size_t written = Update.writeStream(client);
+
+            if (written == contentLength)
+            {
+                Serial.println("Written : " + String(written) + " successfully");
+            }
+            else
+            {
+                Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Retry?");
+                // retry??
+                // execOTA();
+            }
+
+            if (Update.end())
+            {
+                if( _public_key ) {
+                   if( !validate_sig_internal( signature, contentLength ) ) {
                        
                         const esp_partition_t* partition = esp_ota_get_running_partition();
                         esp_ota_set_boot_partition( partition );
