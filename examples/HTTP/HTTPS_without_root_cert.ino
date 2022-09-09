@@ -1,7 +1,7 @@
 /**
    esp32 firmware OTA
-
-   Purpose: Perform an OTA update from a bin located on a webserver (HTTP Only)
+   
+   Purpose: Perform an OTA update from a bin located on a webserver (HTTPS) without having a root cert
 
    Setup:
    Step 1 : Set your WiFi (ssid & password)
@@ -14,22 +14,21 @@
 
 */
 
-#include <esp32fota.h>
+#include <Arduino.h>
+
 #include <WiFi.h>
+
+#include <FS.h>
+#include <SPIFFS.h>
+#include <esp32fota.h>
+
 
 // Change to your WiFi credentials
 const char *ssid = "";
 const char *password = "";
 
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
-esp32FOTA FOTA("esp32-fota-http", 1, false);
-
-void setup()
-{
-  FOTA.checkURL = "http://server/fota/fota.json";
-  Serial.begin(115200);
-  setup_wifi();
-}
+// esp32fota esp32fota("<Type of Firmware for this device>", <this version>, <validate signature>, <allow insecure https>);
+esp32FOTA esp32FOTA("esp32-fota-http", 1, false, true);
 
 void setup_wifi()
 {
@@ -49,14 +48,21 @@ void setup_wifi()
   Serial.println(WiFi.localIP());
 }
 
+void setup()
+{
+  
+  esp32FOTA.checkURL = "https://server/fota/fota.json";
+  Serial.begin(115200);
+  setup_wifi();
+}
+
 void loop()
 {
 
-  FOTA.useDeviceID = true;
-  bool updatedNeeded = FOTA.execHTTPcheck();
+  bool updatedNeeded = esp32FOTA.execHTTPcheck();
   if (updatedNeeded)
   {
-    FOTA.execOTA();
+    esp32FOTA.execOTA();
   }
 
   delay(2000);

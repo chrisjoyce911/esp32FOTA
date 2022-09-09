@@ -21,15 +21,8 @@
 const char *ssid = "";
 const char *password = "";
 
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>);
-esp32FOTA esp32FOTA("esp32-fota-http", 1);
-
-void setup()
-{
-  esp32FOTA.checkURL = "http://server/fota/fota.json";
-  Serial.begin(115200);
-  setup_wifi();
-}
+// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
+esp32FOTA esp32FOTA("esp32-fota-http", 1, false);
 
 void setup_wifi()
 {
@@ -47,6 +40,13 @@ void setup_wifi()
 
   Serial.println("");
   Serial.println(WiFi.localIP());
+}
+
+void setup()
+{
+  esp32FOTA.checkURL = "http://server/fota/fota.json";
+  Serial.begin(115200);
+  setup_wifi();
 }
 
 void loop()
