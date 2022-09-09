@@ -8,7 +8,7 @@
    Author: Moritz Meintker <https://thinksilicon.de>
    Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
             now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS) to verify the
+            use the root_ca.pem (needs to be provided via SPIFFS/LittleFS or SD) to verify the
             server certificate and then download the ressource through an encrypted
             connection unless you set the allow_insecure_https option.
             Otherwise it will just use plain HTTP which will still offer to sign
@@ -16,21 +16,14 @@
 */
 
 #include "esp32fota.h"
-#include <Arduino.h>
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <Update.h>
-#include "ArduinoJson.h"
-#include <FS.h>
-#include <SPIFFS.h>
-
 
 #include "mbedtls/pk.h"
 #include "mbedtls/md.h"
 #include "mbedtls/md_internal.h"
 #include "esp_ota_ops.h"
 
-#include <WiFiClientSecure.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
 esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate, boolean allow_insecure_https)
 {
@@ -40,9 +33,7 @@ esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate,
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
 
-    char version_no[256] = {'\0'};     // If we are passed firmwareVersion as an int, we're assuming it's a major version
-    semver_render(&_firmwareVersion, version_no);
-    log_i("Current firmware version: %s", version_no );
+    debugPayloadVersion("Current firmware version", &_firmwareVersion );
 
 }
 
@@ -58,9 +49,7 @@ esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolea
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
 
-    char version_no[256] = {'\0'};
-    semver_render(&_firmwareVersion, version_no);
-    log_i("Current firmware version: %s", version_no );
+    debugPayloadVersion("Current firmware version", &_firmwareVersion );
 
 }
 
@@ -70,6 +59,12 @@ esp32FOTA::~esp32FOTA() {
     semver_free(&_payloadVersion);
 }
 
+
+void esp32FOTA::setCertFileSystem( fs::FS *cert_filesystem ) {
+    _fs = cert_filesystem;
+}
+
+
 // Check file signature
 // https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
 // https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
@@ -78,8 +73,8 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
     mbedtls_pk_context pk;
     mbedtls_md_context_t rsa;
 
-    { // Open RSA public key:
-        File public_key_file = SPIFFS.open( "/rsa_key.pub" );
+    if( _fs ) { // Open RSA public key:
+        File public_key_file = _fs->open( "/rsa_key.pub" );
         if( !public_key_file ) {
             log_e( "Failed to open rsa_key.pub for reading" );
             return false;
@@ -104,7 +99,7 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
 
 
     const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
-   
+
     if( !partition ) {
         log_e( "Could not find update partition!" );
         return false;
@@ -114,7 +109,7 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
     mbedtls_md_init( &rsa );
     mbedtls_md_setup( &rsa, mdinfo, 0 );
     mbedtls_md_starts( &rsa );
-    
+
     int bytestoread = SPI_FLASH_SEC_SIZE;
     int bytesread = 0;
     int size = firmware_size;
@@ -127,7 +122,7 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
     //Serial.printf( "Reading partition (%i sectors, sec_size: %i)\r\n", size, bytestoread );
     while( bytestoread > 0 ) {
       //Serial.printf( "Left: %i (%i)               \r", size, bytestoread );
-    
+
       if( ESP.partitionRead( partition, bytesread, (uint32_t*)_buffer, bytestoread ) ) {
 	// Debug output for the purpose of comparing with file
         /*for( int i = 0; i < bytestoread; i++ ) {
@@ -182,15 +177,19 @@ void esp32FOTA::execOTA()
     WiFiClientSecure client;
     //http.setConnectTimeout( 1000 );
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    
+
     log_i("Connecting to: %s\r\n", _firmwareUrl.c_str() );
     if( _firmwareUrl.substring( 0, 5 ) == "https" ) {
         if (!_allow_insecure_https) {
+            if( !_fs ) {
+                log_e( "Could not open root_ca.pem: no filesystem specified" );
+                return;
+            }
             // If we're downloading from secure URL use WifiClientSecure instead
             // and provide the root_ca.pem
             log_i( "Loading root_ca.pem" );
             //WiFiClientSecure client;
-            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+            File root_ca_file = _fs->open( "/root_ca.pem" );
             if( !root_ca_file ) {
                 log_e( "Could not open root_ca.pem" );
                 return;
@@ -216,13 +215,13 @@ void esp32FOTA::execOTA()
     http.collectHeaders( get_headers, 2 );
 
     int httpCode = http.GET();
-   
+
     if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
         contentLength = http.header( "Content-Length" ).toInt();
         String contentType = http.header( "Content-type" );
         if( contentType == "application/octet-stream" ) {
             isValidContentType = true;
-            
+
         }
     } else {
         // Connect to webserver failed
@@ -273,7 +272,7 @@ void esp32FOTA::execOTA()
             {
                 if( _check_sig ) {
                    if( !validate_sig( signature, contentLength ) ) {
-                       
+
                         const esp_partition_t* partition = esp_ota_get_running_partition();
                         esp_ota_set_boot_partition( partition );
 
@@ -342,9 +341,7 @@ bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
         _payloadVersion = semver_t {0};
     }
 
-    char version_no[256] = {'\0'};
-    semver_render(&_payloadVersion, version_no);
-    log_i("Payload firmware version: %s", version_no );
+    debugPayloadVersion("Payload firmware version", &_payloadVersion );
 
 
     if(JSONDocument["url"].is<String>()) {
@@ -400,9 +397,13 @@ bool esp32FOTA::execHTTPcheck()
 
     if( useURL.substring( 0, 5 ) == "https" ) {
         if (!_allow_insecure_https) {
+            if( !_fs ) {
+                log_e( "Could not open root_ca.pem: no filesystem specified" );
+                return false;
+            }
             // If the checkURL is https load the root-CA and connect with that
             log_i( "Loading root_ca.pem" );
-            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
+            File root_ca_file = _fs->open( "/root_ca.pem" );
             if( !root_ca_file ) {
                 log_e( "Could not open root_ca.pem" );
                 return false;
@@ -501,7 +502,7 @@ void esp32FOTA::forceUpdate(boolean validate )
     if(!execHTTPcheck()) {
         if (!_firmwareUrl) {
             // execHTTPcheck returns false if either the manifest is malformed or if the version isn't
-            // an upgrade. If _firmwareUrl isn't set, however, we can't force an upgrade. 
+            // an upgrade. If _firmwareUrl isn't set, however, we can't force an upgrade.
             log_e("forceUpdate called, but unable to get _firmwareUrl from manifest via execHTTPcheck.");
             return;
         }
@@ -522,3 +523,11 @@ int esp32FOTA::getPayloadVersion(){
 void esp32FOTA::getPayloadVersion(char * version_string){
     semver_render(&_payloadVersion, version_string);
 }
+
+
+void esp32FOTA::debugPayloadVersion( const char* label, semver_t* version ) {
+   char version_no[256] = {'\0'};
+   semver_render(version, version_no);
+   log_i("%s: %s", label, version_no );
+}
+#pragma GCC diagnostic pop

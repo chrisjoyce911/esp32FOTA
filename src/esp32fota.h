@@ -18,16 +18,48 @@
 #ifndef esp32fota_h
 #define esp32fota_h
 
-#include <Arduino.h>
+extern "C" {
+  #include "semver/semver.h"
+}
+
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <Update.h>
 #include <ArduinoJson.h>
-#include "semver/semver.h"
+#include <FS.h>
+
+// inherit includes from sketch
+#if __has_include(<SD.h>) || defined _SD_H_
+  #pragma message "Using SD for certificate validation"
+  #include <SD.h>
+#elif __has_include(<SD_MMC.h>) || defined _SD_MMC_H_
+  #pragma message "Using SD_MMC for certificate validation"
+  #include <SD_MMC.h>
+#elif __has_include(<SPIFFS.h>) || defined _SPIFFS_H_
+  #pragma message "Using SPIFFS for certificate validation"
+  #include <SPIFFS.h>
+#elif __has_include(<LittleFS.h>) || defined _LiffleFS_H_
+  #pragma message "Using LittleFS for certificate validation"
+  #include <LittleFS.h>
+#elif defined _LIFFLEFS_H_
+  // probably platformio too dumb to realize LittleFS is now part of esp32 package
+  #pragma message "this version of LittleFS is unsupported, use #include <LittleFS.h> instead, if using platformio add LittleFS(esp32)@^2.0.0 to lib_deps"
+#elif defined _PSRAMFS_H_
+  #pragma message "Using PSRamFS for certificate validation"
+  #include <PSRamFS.h>
+#else
+  #pragma message "No filesystem provided, certificate validation will be unavailable (hint: include SD, SPIFFS or LittleFS before including this library)"
+#endif
+
+
 
 class esp32FOTA
 {
 public:
-  esp32FOTA(String firwmareType, int firwmareVersion, boolean validate = false, boolean allow_insecure_https = false );
+  esp32FOTA(String firwmareType, int firwmareVersion,            boolean validate = false, boolean allow_insecure_https = false );
   esp32FOTA(String firwmareType, String firmwareSemanticVersion, boolean validate = false, boolean allow_insecure_https = false );
   ~esp32FOTA();
+  void setCertFileSystem( fs::FS *cert_filesystem = nullptr );
   void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate );
   void forceUpdate(String firmwareURL, boolean validate );
   void forceUpdate(boolean validate );
@@ -42,12 +74,14 @@ public:
 private:
   String getDeviceID();
   String _firmwareType;
-  semver_t _firmwareVersion = {0};
-  semver_t _payloadVersion = {0};
+  semver_t _firmwareVersion = semver_t();
+  semver_t _payloadVersion = semver_t();
   String _firmwareUrl;
   boolean _check_sig;
   boolean _allow_insecure_https;
+  fs::FS *_fs = nullptr; // filesystem for certificate validation
   bool checkJSONManifest(JsonVariant JSONDocument);
+  void debugPayloadVersion( const char* label, semver_t* version );
 
 };
 
