@@ -32,23 +32,29 @@ extern "C" {
 #if __has_include(<SD.h>) || defined _SD_H_
   #pragma message "Using SD for certificate validation"
   #include <SD.h>
+  #define FOTA_FS &SD
 #elif __has_include(<SD_MMC.h>) || defined _SD_MMC_H_
   #pragma message "Using SD_MMC for certificate validation"
   #include <SD_MMC.h>
+  #define FOTA_FS &SD_MMC
 #elif __has_include(<SPIFFS.h>) || defined _SPIFFS_H_
   #pragma message "Using SPIFFS for certificate validation"
   #include <SPIFFS.h>
+  #define FOTA_FS &SPIFFS
 #elif __has_include(<LittleFS.h>) || defined _LiffleFS_H_
   #pragma message "Using LittleFS for certificate validation"
   #include <LittleFS.h>
+  #define FOTA_FS &LittleFS
 #elif defined _LIFFLEFS_H_
   // probably platformio too dumb to realize LittleFS is now part of esp32 package
   #pragma message "this version of LittleFS is unsupported, use #include <LittleFS.h> instead, if using platformio add LittleFS(esp32)@^2.0.0 to lib_deps"
 #elif defined _PSRAMFS_H_
   #pragma message "Using PSRamFS for certificate validation"
   #include <PSRamFS.h>
+  #define FOTA_FS &PSRamFS
 #else
   #pragma message "No filesystem provided, certificate validation will be unavailable (hint: include SD, SPIFFS or LittleFS before including this library)"
+  #define FOTA_FS nullptr
 #endif
 
 
@@ -79,7 +85,7 @@ private:
   String _firmwareUrl;
   boolean _check_sig;
   boolean _allow_insecure_https;
-  fs::FS *_fs = nullptr; // filesystem for certificate validation
+  fs::FS *_fs = FOTA_FS; // filesystem for certificate validation
   bool checkJSONManifest(JsonVariant JSONDocument);
   void debugPayloadVersion( const char* label, semver_t* version );
 
