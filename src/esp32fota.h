@@ -64,26 +64,30 @@ extern "C" {
 class CryptoAsset
 {
 public:
-  virtual size_t get( const char* strout ) = 0;
+  virtual size_t size() = 0;
+  virtual const char* get() = 0;
 };
 
-class CryptoFileAsset
+class CryptoFileAsset : public CryptoAsset
 {
 public:
-  CryptoFileAsset( const char* _path, fs::FS* _fs ) : path(_path), fs(_fs), contents("") { }
-  size_t get( const char* strout );
+  CryptoFileAsset( const char* _path, fs::FS* _fs ) : path(_path), fs(_fs), contents(""), len(0) { }
+  size_t size();
+  const char* get() { return contents.c_str(); }
 private:
   const char* path;
   fs::FS* fs;
   std::string contents;
-  bool fs_read_file( fs::FS* fs, const char* path, std::string out );
+  size_t len;
+  bool fs_read_file(/* fs::FS* fs, const char* path, std::string *out */);
 };
 
-class CryptoMemAsset
+class CryptoMemAsset : public CryptoAsset
 {
 public:
   CryptoMemAsset( const char* _name, const char* _bytes, size_t _len ) : name(_name), bytes(_bytes), len(_len) { }
-  size_t get( const char* strout );
+  size_t size() { return len; };
+  const char* get() { return bytes; }
 private:
   const char* name;
   const char* bytes;
@@ -95,18 +99,18 @@ private:
 class esp32FOTA
 {
 public:
-  esp32FOTA(String firwmareType, int firwmareVersion,            boolean validate = false, boolean allow_insecure_https = false );
-  esp32FOTA(String firwmareType, String firmwareSemanticVersion, boolean validate = false, boolean allow_insecure_https = false );
+  esp32FOTA(String firwmareType, int firwmareVersion,            bool validate = false, bool allow_insecure_https = false );
+  esp32FOTA(String firwmareType, String firmwareSemanticVersion, bool validate = false, bool allow_insecure_https = false );
   ~esp32FOTA();
 
   void setCertFileSystem( fs::FS *cert_filesystem = nullptr );
 
-  template <typename T> void setPubKey( T* asset ) { PubKey = (CryptoAsset*)asset; }
-  template <typename T> void setRootCA( T* asset ) { RootCA = (CryptoAsset*)asset; }
+  template <typename T> void setPubKey( T* asset ) { PubKey = (CryptoAsset*)asset; _check_sig = true; }
+  template <typename T> void setRootCA( T* asset ) { RootCA = (CryptoAsset*)asset; _allow_insecure_https = false; }
 
-  void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate );
-  void forceUpdate(String firmwareURL, boolean validate );
-  void forceUpdate(boolean validate );
+  void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, bool validate );
+  void forceUpdate(String firmwareURL, bool validate );
+  void forceUpdate(bool validate );
   void execOTA();
   void execOTA( int partition, bool restart_after = true );
   bool execHTTPcheck();
@@ -126,12 +130,14 @@ private:
   semver_t _payloadVersion = semver_t();
   String _firmwareUrl;
   String _flashFileSystemUrl;
-  boolean _check_sig;
-  boolean _allow_insecure_https;
+  bool _check_sig;
+  bool _allow_insecure_https;
   bool checkJSONManifest(JsonVariant JSONDocument);
   void debugSemVer( const char* label, semver_t* version );
 
   fs::FS *_fs = FOTA_FS; // default filesystem for certificate validation
+  // This is kept for legacy behaviour, use setPubKey() and setRootCA() with
+  // CryptoMemAsset ot CryptoFileAsset instead
   const char* rsa_key_pub_default_path = "/rsa_key.pub";
   const char* root_ca_pem_default_path = "/root_ca.pem";
 

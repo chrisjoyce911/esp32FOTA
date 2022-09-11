@@ -1,0 +1,8 @@
+{
+    "type": "esp32-fota-http",
+    "version": 2,
+    "host": "github.com",
+    "port": 443,
+    "bin": "/tobozo/esp32FOTA/raw/tests/examples/anyFS/test/stage1/firmware_for_littlefs.bin",
+    "spiffs": "/tobozo/esp32FOTA/raw/tests/examples/anyFS/test/stage1/littlefs.bin"
+}

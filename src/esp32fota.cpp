@@ -44,90 +44,69 @@
 // This is abstracted away to allow storage alternatives such
 // as PROGMEM, SD, SPIFFS, LittleFS or FatFS
 
-bool CryptoFileAsset::fs_read_file( fs::FS* fs, const char* path, std::string out )
+bool CryptoFileAsset::fs_read_file()
 {
     File file = fs->open( path );
-    // TODO: implement max file size to prevent heap crushing
+    size_t fsize = file.size();
     // if( file->size() > ESP.getFreeHeap() ) return false;
     if( !file ) {
         log_e( "Failed to open %s for reading", path );
         return false;
     }
-    out = ""; // make sure the output bucket is empty
-    while( file.available() ){
-        out.push_back( file.read() );
+    contents = ""; // make sure the output bucket is empty
+    while( file.available() ) {
+        contents.push_back( file.read() );
     }
     file.close();
-    return out.size()>0;
+    return contents.size()>0 && fsize==contents.size();
 }
 
 
-size_t CryptoFileAsset::get( const char* strout )
+size_t CryptoFileAsset::size()
 {
-    assert( strout ); // avoid "unused-but-set-parameter" compiler error
-    size_t outlen = 0;
-    if( contents.size() > 0 ) { // already stored, no need to access filesystem
-        strout = contents.c_str();
-        outlen = contents.length() +1;
-    } else if( fs ) { // fetch file contents
-        if( ! fs_read_file( fs, path, contents ) ) return 0;
-        strout = contents.c_str();
-        outlen = contents.length() +1;
+    if( len > 0 ) { // already stored, no need to access filesystem
+        return len;
+    }
+    if( fs ) { // fetch file contents
+        if( ! fs_read_file() ) {
+          log_w("Invalid contents!");
+          return 0;
+        }
+        len = contents.size();
     } else {
         log_e("No filesystem was set for %s!", path);
+        return 0;
     }
-    return outlen;
-}
-
-
-size_t CryptoMemAsset::get( const char* strout )
-{
-    assert( strout ); // avoid "unused-but-set-parameter" compiler error
-    size_t outlen = len;
-
-    if( bytes ) { // Open RSA public key from flash rom
-        strout = bytes;
-        //outlen = strlen( (const char*)bytes )  + 1;
-    } else {
-        log_e("No valid pubkey was set!");
-    }
-    return outlen;
+    return len;
 }
 
 
 
 
-esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate, boolean allow_insecure_https)
+esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, bool validate, bool allow_insecure_https)
 {
     _firmwareType = firmwareType;
     _firmwareVersion = semver_t{firmwareVersion};
     _check_sig = validate;
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
-
     setupCryptoAssets();
-
     debugSemVer("Current firmware version", &_firmwareVersion );
-
 }
 
 
-esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolean validate, boolean allow_insecure_https)
+esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, bool validate, bool allow_insecure_https)
 {
     if (semver_parse(firmwareSemanticVersion.c_str(), &_firmwareVersion)) {
         log_e( "Invalid semver string %s passed to constructor. Defaulting to 0", firmwareSemanticVersion.c_str() );
         _firmwareVersion = semver_t {0};
     }
-
     _firmwareType = firmwareType;
     _check_sig = validate;
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
-
     setupCryptoAssets();
-
     debugSemVer("Current firmware version", &_firmwareVersion );
-
 }
 
 
@@ -145,6 +124,8 @@ void esp32FOTA::setCertFileSystem( fs::FS *cert_filesystem )
 }
 
 
+// Used for legacy behaviour when SPIFFS and RootCa/PubKey had default values
+// New recommended method is to use setPubKey() and setRootCA() with CryptoMemAsset ot CryptoFileAsset objects.
 void esp32FOTA::setupCryptoAssets()
 {
     if( _fs ) {
@@ -161,11 +142,10 @@ void esp32FOTA::setupCryptoAssets()
 bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
 {
     int ret = 1;
-    const char* pubkeystr = nullptr;
+    size_t pubkeylen = PubKey ? PubKey->size()+1 : 0;
+    const char* pubkeystr = PubKey->get();
 
-    size_t pubkeylen = PubKey ? PubKey->get( pubkeystr ) : 0;
-
-    if( pubkeylen == 0 ) {
+    if( pubkeylen <= 1 ) {
         return false;
     }
 
@@ -305,16 +285,21 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
     if( UpdateURL.substring( 0, 5 ) == "https" ) {
         if (!_allow_insecure_https) {
             log_i( "Loading root_ca.pem" );
-            if( !RootCA || RootCA->get( rootcastr ) == 0 ) {
+            if( !RootCA || RootCA->size() == 0 ) {
                 log_e("A strict security context has been set but no RootCA was provided");
                 return;
             }
-            http.begin( UpdateURL, rootcastr );
+            rootcastr = RootCA->get();
+            if( !rootcastr ) {
+                log_e("Unable to get RootCA, aborting");
+                return;
+            }
+            client.setCACert( rootcastr );
         } else {
             // We're downloading from a secure URL, but we don't want to validate the root cert.
             client.setInsecure();
-            http.begin(client, UpdateURL);
         }
+        http.begin( client, UpdateURL );
     } else {
         http.begin( UpdateURL );
     }
@@ -350,8 +335,8 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
     log_i("contentLength : %i, isValidContentType : %s", contentLength, String(isValidContentType));
 
     // check contentLength and content type
-    if( !contentLength || isValidContentType ) {
-        log_e("There was no content in the response");
+    if( !contentLength || !isValidContentType ) {
+        Serial.println("There was no content in the http response");
         http.end();
         return;
     }
@@ -411,7 +396,7 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
                 // SPIFFS/LittleFS partition was already overwritten and unlike U_FLASH (has OTA0/OTA1) this can't be rolled back.
                 // TODO: onValidationFail decision tree with [erase-partition, mark-unsafe, keep-as-is]
             }
-            log_e( "Signature check failed!" );
+            Serial.println( "Signature check failed!" );
             http.end();
             if( restart_after ) {
                 Serial.println("Rebooting.");
@@ -469,12 +454,12 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
     uint16_t portnum    = doc["port"].as<uint16_t>();
     bool has_firmware   = doc["bin"].is<String>();
     bool has_hostname   = doc["host"].is<String>();
-    bool has_port       = doc["host"].is<uint16_t>();
+    bool has_port       = doc["port"].is<uint16_t>();
     bool has_tls        = has_port ? (portnum  == 443 || portnum  == 4433) : false;
     bool has_spiffs     = doc["spiffs"].is<String>();
     bool has_littlefs   = doc["littlefs"].is<String>();
     bool has_fatfs      = doc["fatfs"].is<String>();
-    bool has_filesystem =  has_littlefs || has_spiffs || has_fatfs;
+    bool has_filesystem = has_littlefs || has_spiffs || has_fatfs;
 
     String protocol     = has_tls ? "https" : "http";
     String flashFSPath  =
@@ -535,60 +520,62 @@ bool esp32FOTA::execHTTPcheck()
 
     if( useURL.substring( 0, 5 ) == "https" ) {
         if (!_allow_insecure_https) {
-            if( !RootCA || RootCA->get( rootcastr ) == 0 ) {
+            if( !RootCA || RootCA->size() == 0 ) {
                 log_e("A strict security context has been set but no RootCA was provided");
                 return false;
             }
+            rootcastr = RootCA->get();
+            if( !rootcastr ) {
+                log_e("Unable to get RootCA, aborting");
+                return false;
+            }
             log_i( "Loading root_ca.pem" );
-            http.begin( useURL, rootcastr );
-
+            client.setCACert( rootcastr );
         } else {
             // We're downloading from a secure port, but we don't want to validate the root cert.
             client.setInsecure();
-            http.begin(client, useURL);
         }
+        http.begin(client, useURL);
     } else {
         http.begin(useURL);         //Specify the URL
     }
+
     int httpCode = http.GET();  //Make the request
 
-    if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {  //Check is a file was returned
-
-        String payload = http.getString();
-
-        int str_len = payload.length() + 1;
-        char JSONMessage[str_len];
-        payload.toCharArray(JSONMessage, str_len);
-
-        DynamicJsonDocument JSONResult(2048);
-        DeserializationError err = deserializeJson(JSONResult, JSONMessage);
-
-        http.end();  // We're done with HTTP - free the resources
-
-        if (err) {  //Check for errors in parsing
-            log_e("Parsing failed");
-            return false;
-        }
-
-        if (JSONResult.is<JsonArray>()) {
-            // We already received an array of multiple firmware types
-            JsonArray arr = JSONResult.as<JsonArray>();
-            for (JsonVariant JSONDocument : arr) {
-                if(checkJSONManifest(JSONDocument)) {
-                    return true;
-                }
-            }
-        } else if (JSONResult.is<JsonObject>()) {
-            if(checkJSONManifest(JSONResult.as<JsonVariant>()))
-                return true;
-        }
-
-        return false; // We didn't get a hit against the above, return false
-    } else {
-        log_e("Error on HTTP request");
+    // only handle 200/301
+    if( httpCode != HTTP_CODE_OK && httpCode != HTTP_CODE_MOVED_PERMANENTLY ) {
+        log_e("Error on HTTP request (httpCode=%i)", httpCode);
         http.end();
         return false;
     }
+
+    String payload = http.getString();
+
+
+    DynamicJsonDocument JSONResult(2048);
+    DeserializationError err = deserializeJson(JSONResult, payload.c_str() );
+
+    http.end();  // We're done with HTTP - free the resources
+
+    if (err) {  //Check for errors in parsing
+        log_e("JSON Parsing failed (err #%d):\n%s\n", err, payload.c_str() );
+        return false;
+    }
+
+    if (JSONResult.is<JsonArray>()) {
+        // Although improbable given the size on JSONResult buffer, we already received an array of multiple firmware types
+        JsonArray arr = JSONResult.as<JsonArray>();
+        for (JsonVariant JSONDocument : arr) {
+            if(checkJSONManifest(JSONDocument)) {
+                return true;
+            }
+        }
+    } else if (JSONResult.is<JsonObject>()) {
+        if(checkJSONManifest(JSONResult.as<JsonVariant>()))
+            return true;
+    }
+
+    return false; // We didn't get a hit against the above, return false
 }
 
 
@@ -604,29 +591,30 @@ String esp32FOTA::getDeviceID()
 
 
 // Force a firmware update regardless on current version
-void esp32FOTA::forceUpdate(String firmwareURL, boolean validate )
+void esp32FOTA::forceUpdate(String firmwareURL, bool validate )
 {
     _firmwareUrl = firmwareURL;
-    _check_sig = validate;
+    _check_sig   = validate;
     execOTA();
 }
 
 
-void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate )
+void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, bool validate )
 {
     String firmwareURL;
 
-    if( firmwarePort == 443 || firmwarePort == 4433 )
+    if( firmwarePort == 443 || firmwarePort == 4433 ) {
         firmwareURL = String( "https://");
-    else
+    } else {
         firmwareURL = String( "http://" );
+    }
     firmwareURL += firmwareHost + ":" + String( firmwarePort ) + firmwarePath;
 
     forceUpdate(firmwareURL, validate);
 }
 
 
-void esp32FOTA::forceUpdate(boolean validate )
+void esp32FOTA::forceUpdate(bool validate )
 {
     // Forces an update from a manifest, ignoring the version check
     if(!execHTTPcheck()) {
