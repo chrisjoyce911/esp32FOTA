@@ -8,9 +8,9 @@
    Author: Moritz Meintker <https://thinksilicon.de>
    Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
             now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS/LittleFS or SD) to verify the
-            server certificate and then download the ressource through an encrypted
-            connection unless you set the allow_insecure_https option.
+            use the root_ca.pem (needs to be provided via PROGMEM/SPIFFS/LittleFS or SD)
+            to verify the server certificate and then download the ressource through an
+            encrypted connection unless you set the allow_insecure_https option.
             Otherwise it will just use plain HTTP which will still offer to sign
             your firmware image.
 
@@ -105,10 +105,7 @@ esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate,
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
 
-    if( _fs ) {
-        PubKey = (CryptoAsset*)(new CryptoFileAsset( rsa_key_pub_default_path, _fs  ));
-        RootCA = (CryptoAsset*)(new CryptoFileAsset( root_ca_pem_default_path, _fs  ));
-    }
+    setupCryptoAssets();
 
     debugSemVer("Current firmware version", &_firmwareVersion );
 
@@ -127,10 +124,7 @@ esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolea
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
 
-    if( _fs ) {
-        PubKey = (CryptoAsset*)(new CryptoFileAsset( rsa_key_pub_default_path, _fs  ));
-        RootCA = (CryptoAsset*)(new CryptoFileAsset( root_ca_pem_default_path, _fs  ));
-    }
+    setupCryptoAssets();
 
     debugSemVer("Current firmware version", &_firmwareVersion );
 
@@ -147,7 +141,18 @@ esp32FOTA::~esp32FOTA()
 void esp32FOTA::setCertFileSystem( fs::FS *cert_filesystem )
 {
     _fs = cert_filesystem;
+    setupCryptoAssets();
 }
+
+
+void esp32FOTA::setupCryptoAssets()
+{
+    if( _fs ) {
+        PubKey = (CryptoAsset*)(new CryptoFileAsset( rsa_key_pub_default_path, _fs  ));
+        RootCA = (CryptoAsset*)(new CryptoFileAsset( root_ca_pem_default_path, _fs  ));
+    }
+}
+
 
 
 // SHA-Verify the OTA partition after it's been written
@@ -301,8 +306,8 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
         if (!_allow_insecure_https) {
             log_i( "Loading root_ca.pem" );
             if( !RootCA || RootCA->get( rootcastr ) == 0 ) {
-              log_e("A strict security context has been set but no RootCA was provided");
-              return;
+                log_e("A strict security context has been set but no RootCA was provided");
+                return;
             }
             http.begin( UpdateURL, rootcastr );
         } else {
@@ -366,6 +371,15 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
         return;
     }
 
+    if( _ota_progress_callback ) {
+        Update.onProgress( _ota_progress_callback );
+    } else {
+        Update.onProgress( [](size_t progress, size_t size) {
+            if( progress == size || progress == 0 ) Serial.println();
+            Serial.print(".");
+        });
+    }
+
     unsigned char signature[512];
     if( _check_sig ) {
         stream.readBytes( signature, 512 );
@@ -391,15 +405,18 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
     if( _check_sig ) { // check signature
         if( !validate_sig( signature, contentLength ) ) {
             if( partition == U_FLASH ) { // partition was marked as bootable, but signature validation failed, undo!
-              const esp_partition_t* partition = esp_ota_get_running_partition();
-              esp_ota_set_boot_partition( partition );
+                const esp_partition_t* partition = esp_ota_get_running_partition();
+                esp_ota_set_boot_partition( partition );
             } else if( partition == U_SPIFFS ) { // bummer!
-              // SPIFFS/LittleFS partition was already overwritten and unlike U_FLASH (has OTA0/OTA1) this can't be rolled back.
-              // TODO: onValidationFail decision tree with [erase-partition, mark-unsafe, keep-as-is]
+                // SPIFFS/LittleFS partition was already overwritten and unlike U_FLASH (has OTA0/OTA1) this can't be rolled back.
+                // TODO: onValidationFail decision tree with [erase-partition, mark-unsafe, keep-as-is]
             }
             log_e( "Signature check failed!" );
             http.end();
-            if( restart_after ) ESP.restart();
+            if( restart_after ) {
+                Serial.println("Rebooting.");
+                ESP.restart();
+            }
             return;
         } else {
             log_i( "Signature OK" );
@@ -407,9 +424,12 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
     }
     Serial.println("OTA done!");
     if (Update.isFinished()) {
-        Serial.println("Update successfully completed. Rebooting.");
+        Serial.println("Update successfully completed.");
         http.end();
-        if( restart_after ) ESP.restart();
+        if( restart_after ) {
+            Serial.println("Rebooting.");
+            ESP.restart();
+        }
         return;
     } else {
         Serial.println("Update not finished? Something went wrong!");
@@ -516,8 +536,8 @@ bool esp32FOTA::execHTTPcheck()
     if( useURL.substring( 0, 5 ) == "https" ) {
         if (!_allow_insecure_https) {
             if( !RootCA || RootCA->get( rootcastr ) == 0 ) {
-              log_e("A strict security context has been set but no RootCA was provided");
-              return false;
+                log_e("A strict security context has been set but no RootCA was provided");
+                return false;
             }
             log_i( "Loading root_ca.pem" );
             http.begin( useURL, rootcastr );

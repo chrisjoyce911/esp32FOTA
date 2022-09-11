@@ -116,6 +116,9 @@ public:
   String checkURL;
   bool validate_sig( unsigned char *signature, uint32_t firmware_size );
 
+  typedef std::function<void(size_t, size_t)> ProgressCallback_cb;
+  void setProgressCb(ProgressCallback_cb fn) { _ota_progress_callback = fn; }
+
 private:
   String getDeviceID();
   String _firmwareType;
@@ -128,12 +131,16 @@ private:
   bool checkJSONManifest(JsonVariant JSONDocument);
   void debugSemVer( const char* label, semver_t* version );
 
-  fs::FS *_fs = FOTA_FS; // filesystem for certificate validation
+  fs::FS *_fs = FOTA_FS; // default filesystem for certificate validation
   const char* rsa_key_pub_default_path = "/rsa_key.pub";
   const char* root_ca_pem_default_path = "/root_ca.pem";
 
   CryptoAsset *PubKey = nullptr;
   CryptoAsset *RootCA = nullptr;
+
+  void setupCryptoAssets();
+
+  ProgressCallback_cb _ota_progress_callback;
 
 };
 
