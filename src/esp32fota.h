@@ -28,16 +28,8 @@ extern "C" {
 #include <ArduinoJson.h>
 #include <FS.h>
 
-// inherit includes from sketch
-#if __has_include(<SD.h>) || defined _SD_H_
-  #pragma message "Using SD for certificate validation"
-  #include <SD.h>
-  #define FOTA_FS &SD
-#elif __has_include(<SD_MMC.h>) || defined _SD_MMC_H_
-  #pragma message "Using SD_MMC for certificate validation"
-  #include <SD_MMC.h>
-  #define FOTA_FS &SD_MMC
-#elif __has_include(<SPIFFS.h>) || defined _SPIFFS_H_
+// inherit includes from sketch, detect SPIFFS first for legacy support
+#if __has_include(<SPIFFS.h>) || defined _SPIFFS_H_
   #pragma message "Using SPIFFS for certificate validation"
   #include <SPIFFS.h>
   #define FOTA_FS &SPIFFS
@@ -45,31 +37,78 @@ extern "C" {
   #pragma message "Using LittleFS for certificate validation"
   #include <LittleFS.h>
   #define FOTA_FS &LittleFS
-#elif defined _LIFFLEFS_H_
-  // probably platformio too dumb to realize LittleFS is now part of esp32 package
+#elif __has_include(<SD.h>) || defined _SD_H_
+  #pragma message "Using SD for certificate validation"
+  #include <SD.h>
+  #define FOTA_FS &SD
+#elif __has_include(<SD_MMC.h>) || defined _SD_MMC_H_
+  #pragma message "Using SD_MMC for certificate validation"
+  #include <SD_MMC.h>
+  #define FOTA_FS &SD_MMC
+#elif defined _LIFFLEFS_H_ // older externally linked, hard to identify and unsupported versions of SPIFFS
   #pragma message "this version of LittleFS is unsupported, use #include <LittleFS.h> instead, if using platformio add LittleFS(esp32)@^2.0.0 to lib_deps"
 #elif defined _PSRAMFS_H_
   #pragma message "Using PSRamFS for certificate validation"
   #include <PSRamFS.h>
   #define FOTA_FS &PSRamFS
 #else
-  #pragma message "No filesystem provided, certificate validation will be unavailable (hint: include SD, SPIFFS or LittleFS before including this library)"
+  // #pragma message "No filesystem provided, certificate validation will be unavailable (hint: include SD, SPIFFS or LittleFS before including this library)"
   #define FOTA_FS nullptr
 #endif
 
 
+// Filesystem/memory helper for signature check and pem validation.
+// This is abstracted away to allow storage alternatives such as
+// PROGMEM, SD, SPIFFS, LittleFS or FatFS
+// Intended to be used by esp32FOTA.setPubKey() and esp32FOTA.setRootCA()
+class CryptoAsset
+{
+public:
+  virtual size_t get( const char* strout ) = 0;
+};
 
+class CryptoFileAsset
+{
+public:
+  CryptoFileAsset( const char* _path, fs::FS* _fs ) : path(_path), fs(_fs), contents("") { }
+  size_t get( const char* strout );
+private:
+  const char* path;
+  fs::FS* fs;
+  std::string contents;
+  bool fs_read_file( fs::FS* fs, const char* path, std::string out );
+};
+
+class CryptoMemAsset
+{
+public:
+  CryptoMemAsset( const char* _name, const char* _bytes, size_t _len ) : name(_name), bytes(_bytes), len(_len) { }
+  size_t get( const char* strout );
+private:
+  const char* name;
+  const char* bytes;
+  size_t len;
+};
+
+
+// Main Class
 class esp32FOTA
 {
 public:
   esp32FOTA(String firwmareType, int firwmareVersion,            boolean validate = false, boolean allow_insecure_https = false );
   esp32FOTA(String firwmareType, String firmwareSemanticVersion, boolean validate = false, boolean allow_insecure_https = false );
   ~esp32FOTA();
+
   void setCertFileSystem( fs::FS *cert_filesystem = nullptr );
+
+  template <typename T> void setPubKey( T* asset ) { PubKey = (CryptoAsset*)asset; }
+  template <typename T> void setRootCA( T* asset ) { RootCA = (CryptoAsset*)asset; }
+
   void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate );
   void forceUpdate(String firmwareURL, boolean validate );
   void forceUpdate(boolean validate );
   void execOTA();
+  void execOTA( int partition, bool restart_after = true );
   bool execHTTPcheck();
   int getPayloadVersion();
   void getPayloadVersion(char * version_string);
@@ -83,11 +122,18 @@ private:
   semver_t _firmwareVersion = semver_t();
   semver_t _payloadVersion = semver_t();
   String _firmwareUrl;
+  String _flashFileSystemUrl;
   boolean _check_sig;
   boolean _allow_insecure_https;
-  fs::FS *_fs = FOTA_FS; // filesystem for certificate validation
   bool checkJSONManifest(JsonVariant JSONDocument);
-  void debugPayloadVersion( const char* label, semver_t* version );
+  void debugSemVer( const char* label, semver_t* version );
+
+  fs::FS *_fs = FOTA_FS; // filesystem for certificate validation
+  const char* rsa_key_pub_default_path = "/rsa_key.pub";
+  const char* root_ca_pem_default_path = "/root_ca.pem";
+
+  CryptoAsset *PubKey = nullptr;
+  CryptoAsset *RootCA = nullptr;
 
 };
 
