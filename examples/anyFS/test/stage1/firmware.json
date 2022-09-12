@@ -11,7 +11,7 @@
     "host": "github.com",
     "port": 443,
     "bin": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/2.cert-in-spiffs.ino.bin?raw=true",
-    "spiffs": "/tobozo/esp32FOTA/blob/master/examples/anyFS/test/stage1/2.cert-in-spiffs.spiffs.bin?raw=true"
+    "spiffs": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/2.cert-in-spiffs.spiffs.bin?raw=true"
 },
 {
     "type": "esp32-fota-http",
