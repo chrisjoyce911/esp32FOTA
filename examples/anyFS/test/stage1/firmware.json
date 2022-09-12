@@ -3,28 +3,28 @@
     "version": 1,
     "host": "github.com",
     "port": 443,
-    "bin": "/tobozo/esp32FOTA/raw/tests/examples/anyFS/test/stage1/1.nosecurity.ino.bin"
+    "bin": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/1.nosecurity.ino.bin"
 },
 {
     "type": "esp32-fota-http",
     "version": 2,
     "host": "github.com",
     "port": 443,
-    "bin": "/tobozo/esp32FOTA/raw/tests/examples/anyFS/test/stage1/2.cert-in-spiffs.ino.bin",
-    "spiffs": "/tobozo/esp32FOTA/raw/master/examples/anyFS/test/stage1/2.cert-in-spiffs.spiffs.bin"
+    "bin": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/2.cert-in-spiffs.ino.bin",
+    "spiffs": "/tobozo/esp32FOTA/blob/master/examples/anyFS/test/stage1/2.cert-in-spiffs.spiffs.bin"
 },
 {
     "type": "esp32-fota-http",
     "version": 3,
     "host": "github.com",
     "port": 443,
-    "bin": "/tobozo/esp32FOTA/raw/tests/examples/anyFS/test/stage1/3.cert-in-progmem.ino.bin"
+    "bin": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/3.cert-in-progmem.ino.bin"
 },
 {
     "type": "esp32-fota-http",
     "version": 4,
     "host": "github.com",
     "port": 443,
-    "bin": "/tobozo/esp32FOTA/raw/tests/examples/anyFS/test/stage1/4.cert-in-littlefs.ino.bin",
-    "spiffs": "/tobozo/esp32FOTA/raw/tests/examples/anyFS/test/stage1/4.cert-in-littlefs.littlefs.bin"
+    "bin": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/4.cert-in-littlefs.ino.bin",
+    "spiffs": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/4.cert-in-littlefs.littlefs.bin"
 }]
