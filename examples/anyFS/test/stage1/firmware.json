@@ -27,4 +27,11 @@
     "port": 443,
     "bin": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/4.cert-in-littlefs.ino.bin?raw=true",
     "spiffs": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/4.cert-in-littlefs.littlefs.bin?raw=true"
+},
+{
+    "type": "esp32-fota-http",
+    "version": 5,
+    "host": "github.com",
+    "port": 443,
+    "bin": "/tobozo/esp32FOTA/blob/tests/examples/anyFS/test/stage1/5.final-stage.ino.bin?raw=true"
 }]
