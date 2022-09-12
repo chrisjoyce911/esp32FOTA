@@ -542,7 +542,7 @@ bool esp32FOTA::execHTTPcheck()
 
     int httpCode = http.GET();  //Make the request
 
-    // only handle 200/301
+    // only handle 200/301, fail on everything else
     if( httpCode != HTTP_CODE_OK && httpCode != HTTP_CODE_MOVED_PERMANENTLY ) {
         log_e("Error on HTTP request (httpCode=%i)", httpCode);
         http.end();
@@ -551,14 +551,16 @@ bool esp32FOTA::execHTTPcheck()
 
     String payload = http.getString();
 
+    // TODO: use payload.length() to speculate on JSONResult buffer size
+    #define JSON_FW_BUFF_SIZE 2048
+    DynamicJsonDocument JSONResult( JSON_FW_BUFF_SIZE );
 
-    DynamicJsonDocument JSONResult(2048);
-    DeserializationError err = deserializeJson(JSONResult, payload.c_str() );
+    DeserializationError err = deserializeJson( JSONResult, payload.c_str() );
 
     http.end();  // We're done with HTTP - free the resources
 
     if (err) {  //Check for errors in parsing
-        log_e("JSON Parsing failed (err #%d):\n%s\n", err, payload.c_str() );
+        log_e("JSON Parsing failed (err #%d, in=%d bytes, buff=%d bytes):\n%s\n", err, payload.length(), JSON_FW_BUFF_SIZE, payload.c_str() );
         return false;
     }
 
@@ -567,6 +569,7 @@ bool esp32FOTA::execHTTPcheck()
         JsonArray arr = JSONResult.as<JsonArray>();
         for (JsonVariant JSONDocument : arr) {
             if(checkJSONManifest(JSONDocument)) {
+                // TODO: filter "highest vs next" version number for JSON with only one firmware type but several version numbers
                 return true;
             }
         }
