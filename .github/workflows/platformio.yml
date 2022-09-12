@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - master
+  workflow_dispatch:
 
 jobs:
   build:
@@ -30,4 +31,4 @@ jobs:
       - name: Build test
         run: |
           pio run
-      
+
