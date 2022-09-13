@@ -22,6 +22,7 @@ extern "C" {
   #include "semver/semver.h"
 }
 
+#include <map>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <Update.h>
@@ -120,8 +121,12 @@ public:
   String checkURL;
   bool validate_sig( unsigned char *signature, uint32_t firmware_size );
 
+  // this is passed to Update.onProgress()
   typedef std::function<void(size_t, size_t)> ProgressCallback_cb;
   void setProgressCb(ProgressCallback_cb fn) { _ota_progress_callback = fn; }
+
+  // use this to set "Authorization: Basic" or other specific headers to be sent with the queries
+  void setExtraHTTPHeader( String name, String value ) { extraHTTPHeaders[name] = value; }
 
 private:
   String getDeviceID();
@@ -146,7 +151,11 @@ private:
 
   void setupCryptoAssets();
 
+  // custom progress callback provided by user
   ProgressCallback_cb _ota_progress_callback;
+
+  // this holds the extra http headers defined by the user
+  std::map<String,String> extraHTTPHeaders;
 
 };
 

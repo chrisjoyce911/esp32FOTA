@@ -307,6 +307,13 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
         http.begin( UpdateURL );
     }
 
+    if( extraHTTPHeaders.size() > 0 ) {
+      // add custom headers provided by user e.g. http.addHeader("Authorization", "Basic " + auth)
+      for( const auto& [headername, headervalue]: extraHTTPHeaders ) {
+        http.addHeader(headername, headervalue);
+      }
+    }
+
     // TODO: add more watched headers e.g. Authorization: Signature keyId="rsa-key-1",algorithm="rsa-sha256",signature="Base64(RSA-SHA256(signing string))"
     const char* get_headers[] = { "Content-Length", "Content-type" };
     http.collectHeaders( get_headers, 2 );
@@ -541,6 +548,13 @@ bool esp32FOTA::execHTTPcheck()
         http.begin(client, useURL);
     } else {
         http.begin(useURL);         //Specify the URL
+    }
+
+    if( extraHTTPHeaders.size() > 0 ) {
+      // add custom headers provided by user e.g. http.addHeader("Authorization", "Basic " + auth)
+      for( const auto& [headername, headervalue]: extraHTTPHeaders ) {
+        http.addHeader(headername, headervalue);
+      }
     }
 
     int httpCode = http.GET();  //Make the request
