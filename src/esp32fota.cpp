@@ -245,8 +245,11 @@ void esp32FOTA::execOTA()
         if( _fs ) { // Possible risk of overwriting certs and signatures, cancel flashing!
             log_e("Cowardly refusing to overwrite U_SPIFFS. Use setCertFileSystem(nullptr) along with setPubKey()/setCAPem() to enable this feature.");
         } else {
+            log_i("Will update U_SPIFFS");
             execOTA( U_SPIFFS, false );
         }
+    } else {
+      log_i("This update is for U_FLASH only");
     }
     // handle the application partition and restart on success
     execOTA( U_FLASH, true );

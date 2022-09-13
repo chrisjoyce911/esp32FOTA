@@ -27,7 +27,6 @@
 
 CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/github-com.cert.pem", &LittleFS );
 
-
 //CryptoMemAsset *MyRSAKey = new CryptoMemAsset("RSA Public Key",     rsa_key_pub, strlen(rsa_key_pub)+1 );
 //CryptoMemAsset *MyRootCA = new CryptoMemAsset("Certificates Chain", root_ca,     strlen(root_ca)+1 );
 
@@ -73,7 +72,7 @@ void setup()
   // use this when more than one filesystem is used in the sketch
   // esp32FOTA.setCertFileSystem( &SD );
 
-  esp32FOTA.checkURL = "https://github.com/tobozo/esp32FOTA/raw/tests/examples/anyFS/test/stage1/firmware.json";
+  esp32FOTA.checkURL = "http://server/fota/fota.json";
 
 
   setup_wifi();
