@@ -127,10 +127,10 @@ jobs:
       - name: Create artifacts dir
         run: mkdir -p /home/runner/builds
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v2
-        with:
-          path: /home/runner/builds
+      #- name: Download artifacts
+        #uses: actions/download-artifact@v2
+        #with:
+          #path: /home/runner/builds
 
       - name: Polulate JSON Manifest
         run: |
