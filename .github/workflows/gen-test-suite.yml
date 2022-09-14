@@ -98,12 +98,12 @@ jobs:
       - name: Create filesystem images
         run: |
           # ooh that's dirty :-)
-          mklittlefs_esp32=~/.arduino15/packages/esp32*/tools/mklittlefs/*/mklittlefs
           mkspiffs_esp32=~/.arduino15/packages/esp32*/tools/mkspiffs/*/mkspiffs
-          echo "mklittlefs path: $mklittlefs_esp32"
+          mklittlefs_esp32=~/.arduino15/packages/esp32*/tools/mklittlefs/*/mklittlefs
           echo "mkspiffs path: $mkspiffs_esp32"
-          $mklittlefs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.littlefs.bin
-          $mkspiffs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.spiffs.bin
+          echo "mklittlefs path: $mklittlefs_esp32"
+          $mkspiffs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/2.cert-in-spiffs.spiffs.bin
+          $mklittlefs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/4.cert-in-littlefs.littlefs.bin
           ls /home/runner/builds -la
 
       - name: Upload artifact for Stage ${{ matrix.test-stage }}
