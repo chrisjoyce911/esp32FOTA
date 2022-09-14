@@ -37,10 +37,10 @@ on:
         required: true
         type: choice
         options:
+        - default
         - min_spiffs
-        - default_spiffs
         - large_spiffs
-        default: 'default_spiffs'
+        default: 'default'
 
 jobs:
 
