@@ -77,7 +77,6 @@ jobs:
         run: |
           full_rootca_path=`find /home/runner/work/ | grep "progmem/root_ca.h"`
           ssl_host="${{ inputs.manifest_host }}"
-          # prefix="const char* ${ssl_host//[^a-zA-Z0-9]/_}_ca =\\"
           prefix="const char* root_ca =\\"
           suffix="\"\";"
           echo $prefix > $full_rootca_path
@@ -109,6 +108,14 @@ jobs:
           full_ino_bin_path=`find . | grep "build/${{ matrix.sketch }}.bin"`
           echo "Bin path: $full_ino_bin_path"
           cp "$full_ino_bin_path" /home/runner/builds/${{ matrix.sketch }}.bin
+
+      - name: Prepare data folder if applicable
+        if: (inputs.manifest_port  == '443' || inputs.manifest_port  == '4433')
+        run: |
+          full_rootca_path=`find /home/runner/work/ | grep "anyFS/data/root_ca.pem"`
+          ssl_host="${{ inputs.manifest_host }}"
+          openssl s_client -showcerts -connect $ssl_host:${{ inputs.manifest_port }} </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > $full_rootca_path
+          cat $full_rootca_path
 
       - name: Create filesystem images
         run: |
