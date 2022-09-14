@@ -8,11 +8,25 @@
    Author: Moritz Meintker <https://thinksilicon.de>
    Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
             now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS) to verify the
-            server certificate and then download the ressource through an encrypted
-            connection.
+            use the root_ca.pem (needs to be provided via PROGMEM/SPIFFS/LittleFS or SD)
+            to verify the server certificate and then download the ressource through an
+            encrypted connection unless you set the allow_insecure_https option.
             Otherwise it will just use plain HTTP which will still offer to sign
             your firmware image.
+
+   Date: 2022-09-12
+   Author: tobozo <https://github.com/tobozo>
+   Changes:
+     - Abstracted away filesystem
+     - Refactored some code blocks
+     - Added spiffs/littlefs/fatfs updatability
+     - Made crypto assets (pub key, rootca) loadable from multiple sources
+   Roadmap:
+     - Firmware/FlashFS update order (SPIFFS/LittleFS first or last?)
+     - Archive support for gz/targz formats
+       - firmware.gz + spiffs.gz in manifest
+       - bundle.tar.gz [ firmware + filesystem ] in manifest
+     - Update from Stream (e.g deported update via SD, http or gzupdater)
 */
 
 #ifndef esp32fota_h
