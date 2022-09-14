@@ -68,7 +68,7 @@ jobs:
 
       - name: Inject Manifest URL
         run: |
-          full_ino_path=`find . | grep "${{ matrix.sketch }}"`
+          full_ino_path=`find /home/runner/work/ | grep "${{ matrix.sketch }}"`
           echo -e "#define FOTA_URL \"${{ inputs.manifest_url }}\"\n$(cat $full_ino_path)" > $full_ino_path
 
       - name: ${{ matrix.sketch }}
@@ -89,7 +89,7 @@ jobs:
       - name: Save compiled binaries
         run: |
           mkdir -p /home/runner/builds
-          full_ino_bin_path=`find . | grep "${{ matrix.sketch }}.ino.bin"`
+          full_ino_bin_path=`find /home/runner/work/ | grep "${{ matrix.sketch }}.ino.bin"`
           cp $full_ino_bin_path /home/runner/builds/
 
       - name: Create filesystem images
