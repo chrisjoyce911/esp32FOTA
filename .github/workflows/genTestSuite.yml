@@ -1,56 +1,45 @@
 on:
-  push:
-    branches:
-      - master
-
-  pull_request:
-    branches:
-      - master
   workflow_dispatch:
-  #push:
-    #branches:
-      #- master
-  #workflow_dispatch:
-    #inputs:
-      #firmware_type:
-        #description: 'Firmware Type'
-        #default: 'esp32-fota-http'
-        #required: true
-        #type: string
-      #manifest_url:
-        #description: 'Complete URL (where the JSON Manifest will be hosted)'
-        #required: true
-        #default: 'https://github.com/[user]/[repo]/raw/[branch]/[path to manifest]/firmware.json'
-        #type: string
-      #manifest_host:
-        #description: 'Hostname (where the binaries will be hosted)'
-        #required: true
-        #default: 'github.com'
-        #type: string
-      #manifest_port:
-        #description: 'Port (e.g 80 or 443)'
-        #required: true
-        #default: '443'
-        #type: string
-      #manifest_bin_path:
-        #description: 'Path (no trailing slash)'
-        #required: true
-        #default: '/[user]/[repo]/blob/[branch]/[path to binaries]'
-        #type: string
-      #board_fqbn:
-        #description: 'Espressif Target (esp32/esp32c3/esp32s2/esp32s3)'
-        #required: true
-        #default: 'esp32:esp32:esp32_dev'
-        #type: string
-      #partition_scheme:
-        #description: 'Partition scheme'
-        #required: true
-        #type: choice
-        #options:
-        #- min_spiffs
-        #- default_spiffs
-        #- large_spiffs
-        #default: 'default_spiffs'
+    inputs:
+      firmware_type:
+        description: 'Firmware Type'
+        default: 'esp32-fota-http'
+        required: true
+        type: string
+      manifest_url:
+        description: 'Complete URL (where the JSON Manifest will be hosted)'
+        required: true
+        default: 'https://github.com/[user]/[repo]/raw/[branch]/[path to manifest]/firmware.json'
+        type: string
+      manifest_host:
+        description: 'Hostname (where the binaries will be hosted)'
+        required: true
+        default: 'github.com'
+        type: string
+      manifest_port:
+        description: 'Port (e.g 80 or 443)'
+        required: true
+        default: '443'
+        type: string
+      manifest_bin_path:
+        description: 'Path (no trailing slash)'
+        required: true
+        default: '/[user]/[repo]/blob/[branch]/[path to binaries]'
+        type: string
+      board_fqbn:
+        description: 'Espressif Target (esp32/esp32c3/esp32s2/esp32s3)'
+        required: true
+        default: 'esp32:esp32:esp32_dev'
+        type: string
+      partition_scheme:
+        description: 'Partition scheme'
+        required: true
+        type: choice
+        options:
+        - min_spiffs
+        - default_spiffs
+        - large_spiffs
+        default: 'default_spiffs'
 
 jobs:
 
