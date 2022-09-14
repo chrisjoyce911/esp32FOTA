@@ -91,7 +91,7 @@ jobs:
           mkdir -p /home/runner/builds
           ls /home/runner/builds -la
           cd /home/runner/work/
-          full_ino_bin_path=`find . | grep "${{ matrix.sketch }}.bin"`
+          full_ino_bin_path=`find . | grep "build/${{ matrix.sketch }}.bin"`
           echo "Bin path: $full_ino_bin_path"
           cp "$full_ino_bin_path" /home/runner/builds/${{ matrix.sketch }}.bin
 
