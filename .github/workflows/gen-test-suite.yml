@@ -1,4 +1,4 @@
-Name: Dispatchable build
+name: Dispatchable build
 on:
   workflow_dispatch:
     inputs:
