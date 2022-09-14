@@ -25,7 +25,7 @@
 
 #include <esp32fota.h> // fota pulls WiFi library
 
-CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/github-com.cert.pem", &LittleFS );
+CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &LittleFS );
 
 //CryptoMemAsset *MyRSAKey = new CryptoMemAsset("RSA Public Key",     rsa_key_pub, strlen(rsa_key_pub)+1 );
 //CryptoMemAsset *MyRootCA = new CryptoMemAsset("Certificates Chain", root_ca,     strlen(root_ca)+1 );

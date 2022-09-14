@@ -35,3 +35,4 @@
     "port": "FIRMWARE_PORT",
     "bin": "FIRMWARE_PATH/5.final-stage.ino.bin?raw=true"
 }]
+

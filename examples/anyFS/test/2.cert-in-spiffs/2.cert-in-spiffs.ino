@@ -41,7 +41,7 @@ const char* fota_debug_fmt = R"DBG_FMT(
 esp32FOTA esp32FOTA( String(firmware_name), firmware_version, check_signature, disable_security );
 
 // create an abstraction of the root_ca file
-CryptoFileAsset *GithubRootCA = new CryptoFileAsset( "/github-com.cert.pem", &SPIFFS );
+CryptoFileAsset *GithubRootCA = new CryptoFileAsset( "/root_ca.pem", &SPIFFS );
 
 void setup_wifi()
 {
