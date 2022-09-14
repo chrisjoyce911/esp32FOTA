@@ -28,9 +28,9 @@ on:
         default: '/[user]/[repo]/blob/[branch]/[path to binaries]'
         type: string
       board_fqbn:
-        description: 'Espressif Target (esp32/esp32c3/esp32s2/esp32s3)'
+        description: 'Board FQBN (for arduino-cli)'
         required: true
-        default: 'esp32:esp32:esp32_dev'
+        default: 'esp32:esp32:esp32'
         type: string
       partition_scheme:
         description: 'Partition scheme'
@@ -69,7 +69,7 @@ jobs:
       - name: Inject Manifest URL
         run: |
           full_ino_path=`find . | grep "${{ matrix.sketch }}"`
-          echo -e "#DEFINE FOTA_URL \"${{ inputs.manifest_url }}\"\n$(cat $full_ino_path)" > $full_ino_path
+          echo -e "#define FOTA_URL \"${{ inputs.manifest_url }}\"\n$(cat $full_ino_path)" > $full_ino_path
 
       - name: ${{ matrix.sketch }}
         uses: ArminJo/arduino-test-compile@v3
