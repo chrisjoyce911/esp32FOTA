@@ -1,4 +1,7 @@
 on:
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       firmware_type:
@@ -140,5 +143,4 @@ jobs:
         with:
           files: |
             /home/runner/builds/**
-
 
