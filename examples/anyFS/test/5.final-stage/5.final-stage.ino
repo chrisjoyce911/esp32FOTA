@@ -3,7 +3,13 @@
 void setup()
 {
   Serial.begin( 115200 );
-  Serial.println("\n\n\n**************************\n\n\nTEST SUITE COMPLETE\n\n\n");
+  Serial.println();
+  Serial.println();
+  Serial.println();
+  Serial.println("**************************");
+  Serial.println("Test suite COMPLETE :-)");
+  Serial.println();
+  Serial.println();
 }
 
 void loop()
