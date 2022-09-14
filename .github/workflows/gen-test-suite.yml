@@ -100,8 +100,10 @@ jobs:
           # ooh that's dirty :-)
           mklittlefs_esp32=~/.arduino15/packages/esp32*/tools/mklittlefs/*/mklittlefs
           mkspiffs_esp32=~/.arduino15/packages/esp32*/tools/mkspiffs/*/mkspiffs
-          mklittlefs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.littlefs.bin
-          mkspiffs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.spiffs.bin
+          echo "mklittlefs path: $mklittlefs_esp32"
+          echo "mkspiffs path: $mkspiffs_esp32"
+          $mklittlefs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.littlefs.bin
+          $mkspiffs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.spiffs.bin
 
       - name: Upload artifact for Stage ${{ matrix.test-stage }}
         uses: actions/upload-artifact@v2
