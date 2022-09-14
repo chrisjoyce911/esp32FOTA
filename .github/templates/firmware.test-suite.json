@@ -1,0 +1,38 @@
+[{
+    "type": "FIRMWARE_TYPE",
+    "version": 1,
+    "host": "FIRMWARE_HOST",
+    "port": "FIRMWARE_PORT",
+    "bin": "FIRMWARE_PATH/1.nosecurity.ino.bin?raw=true"
+},
+{
+    "type": "FIRMWARE_TYPE",
+    "version": 2,
+    "host": "FIRMWARE_HOST",
+    "port": "FIRMWARE_PORT",
+    "bin": "FIRMWARE_PATH/2.cert-in-spiffs.ino.bin?raw=true",
+    "spiffs": "FIRMWARE_PATH/2.cert-in-spiffs.spiffs.bin?raw=true"
+},
+{
+    "type": "FIRMWARE_TYPE",
+    "version": 3,
+    "host": "FIRMWARE_HOST",
+    "port": "FIRMWARE_PORT",
+    "bin": "FIRMWARE_PATH/3.cert-in-progmem.ino.bin?raw=true"
+},
+{
+    "type": "FIRMWARE_TYPE",
+    "version": 4,
+    "host": "FIRMWARE_HOST",
+    "port": "FIRMWARE_PORT",
+    "bin": "FIRMWARE_PATH/4.cert-in-littlefs.ino.bin?raw=true",
+    "spiffs": "FIRMWARE_PATH/4.cert-in-littlefs.littlefs.bin?raw=true"
+},
+{
+    "type": "FIRMWARE_TYPE",
+    "version": 5,
+    "host": "FIRMWARE_HOST",
+    "port": "FIRMWARE_PORT",
+    "bin": "FIRMWARE_PATH/5.final-stage.ino.bin?raw=true"
+}]
+

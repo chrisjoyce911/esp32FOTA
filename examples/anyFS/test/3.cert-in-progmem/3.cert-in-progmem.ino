@@ -37,7 +37,11 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 
 // esp32fota settings
 const int firmware_version  = 3;
-const char* fota_url        = "https://github.com/chrisjoyce911/esp32FOTA/raw/tests/examples/anyFS/test/stage1/firmware.json";
+#if defined FOTA_URL
+  const char* fota_url        = FOTA_URL;
+#else
+  const char* fota_url        = "https://github.com/chrisjoyce911/esp32FOTA/raw/tests/examples/anyFS/test/stage1/firmware.json";
+#endif
 const char* firmware_name   = "esp32-fota-http";
 const bool check_signature  = false;
 const bool disable_security = false;

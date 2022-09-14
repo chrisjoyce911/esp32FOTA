@@ -1,0 +1,144 @@
+on:
+  workflow_dispatch:
+    inputs:
+      firmware_type:
+        description: 'Firmware Type'
+        default: 'esp32-fota-http'
+        required: true
+        type: string
+      manifest_url:
+        description: 'Complete URL (where the JSON Manifest will be hosted)'
+        required: true
+        default: 'https://github.com/[user]/[repo]/raw/[branch]/[path to manifest]/firmware.json'
+        type: string
+      manifest_host:
+        description: 'Hostname (where the binaries will be hosted)'
+        required: true
+        default: 'github.com'
+        type: string
+      manifest_port:
+        description: 'Port (e.g 80 or 443)'
+        required: true
+        default: '443'
+        type: string
+      manifest_bin_path:
+        description: 'Path (no trailing slash)'
+        required: true
+        default: '/[user]/[repo]/blob/[branch]/[path to binaries]'
+        type: string
+      board_fqbn:
+        description: 'Espressif Target (esp32/esp32c3/esp32s2/esp32s3)'
+        required: true
+        default: 'esp32:esp32:esp32_dev'
+        type: string
+      partition_scheme:
+        description: 'Partition scheme'
+        required: true
+        type: choice
+        options:
+        - min_spiffs
+        - default_spiffs
+        - large_spiffs
+        default: 'default_spiffs'
+
+jobs:
+
+  matrix_build:
+
+    name: ${{ matrix.sketch }}@${{ matrix.stage }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - { stage: 1, sketch:"1.nosecurity.ino"       }
+          - { stage: 2, sketch:"2.cert-in-spiffs.ino"   }
+          - { stage: 3, sketch:"3.cert-in-progmem.ino"  }
+          - { stage: 4, sketch:"4.cert-in-littlefs.ino" }
+          - { stage: 5, sketch:"5.final-stage.ino"      }
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Inject Manifest URL
+        run: |
+          full_ino_path=`find . | grep "${{ matrix.sketch }}"`
+          echo -e "#DEFINE FOTA_URL \"${{ inputs.manifest_url }}\"\n$(cat $full_ino_path)" > $full_ino_path
+
+      - name: ${{ matrix.sketch }}@${{ matrix.stage }}
+        uses: ArminJo/arduino-test-compile@v3
+        with:
+          platform-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_dev_index.json
+          arduino-board-fqbn: ${{ inputs.board_fqbn }}:PartitionScheme=${{inputs.partition_scheme}}
+          required-libraries: ArduinoJson
+          extra-arduino-lib-install-args: --no-deps
+          extra-arduino-cli-args: "--warnings default " # see https://github.com/ArminJo/arduino-test-compile/issues/28
+          sketch-names: ${{ matrix.sketch }}
+          set-build-path: true
+          # build-properties: ${{ toJson(matrix.build-properties) }}
+          # arduino-platform: esp32:esp32@${{ matrix.sdk-version }}
+          # extra-arduino-cli-args: ${{ matrix.extra-arduino-cli-args }}
+          # debug-install: true
+
+      - name: Save compiled binaries
+        run: |
+          mkdir -p /home/runner/builds
+          full_ino_bin_path=`find . | grep "${{ matrix.sketch }}.ino.bin"`
+          cp $full_ino_bin_path /home/runner/builds/
+
+      - name: Create filesystem images
+        run: |
+          # ooh that's dirty :-)
+          mklittlefs_esp32=~/.arduino15/packages/esp32*/tools/mklittlefs/*/mklittlefs
+          mkspiffs_esp32=~/.arduino15/packages/esp32*/tools/mkspiffs/*/mkspiffs
+          mklittlefs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.littlefs.bin
+          mkspiffs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.spiffs.bin
+
+      - name: Upload artifact for Stage ${{ matrix.stage }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: Stage ${{ matrix.stage }}
+          path: |
+            /home/runner/builds/**
+
+
+  post_build:
+    name: Gather Artefacts
+    runs-on: ubuntu-latest
+    # wait until matrix jobs are all finished
+    needs: matrix_build
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Create artifacts dir
+        run: mkdir -p /home/runner/builds
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: /home/runner/builds
+
+      - name: Polulate firmware.json
+        run: |
+          firmware_json_path=/home/runner/builds/firmware.json
+          cp .github/templates/firmware.test-suite.json $firmware_json_path
+          sed -i -e 's/FIRMWARE_TYPE/${{ inputs.firmware_type }}/g' $firmware_json_path
+          sed -i -e 's/FIRMWARE_HOST/${{ inputs.manifest_host }}/g' $firmware_json_path
+          sed -i -e 's/FIRMWARE_PORT/${{ inputs.manifest_port }}/g' $firmware_json_path
+          sed -i -e 's/FIRMWARE_PATH/${{ inputs.manifest_bin_path }}/g' $firmware_json_path
+          cat $firmware_json_path
+
+      - name: Release check
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            /home/runner/builds/**
+
+
