@@ -104,6 +104,7 @@ jobs:
           echo "mkspiffs path: $mkspiffs_esp32"
           $mklittlefs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.littlefs.bin
           $mkspiffs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s 0x3D0000 /home/runner/builds/default.spiffs.bin
+          ls /home/runner/builds -la
 
       - name: Upload artifact for Stage ${{ matrix.test-stage }}
         uses: actions/upload-artifact@v2
@@ -131,7 +132,7 @@ jobs:
         with:
           path: /home/runner/builds
 
-      - name: Polulate firmware.json
+      - name: Polulate JSON Manifest
         run: |
           firmware_json_path=/home/runner/builds/firmware.json
           cp .github/templates/firmware.test-suite.json $firmware_json_path
@@ -140,6 +141,14 @@ jobs:
           sed -i -e 's/FIRMWARE_PORT/${{ inputs.manifest_port }}/g' $firmware_json_path
           sed -i -e 's~FIRMWARE_PATH~${{ inputs.manifest_bin_path }}~g' $firmware_json_path
           cat $firmware_json_path
+
+      - name: Update artifacts with new JSON Manifest
+        uses: actions/upload-artifact@v2
+        with:
+          name: Manifest
+          path: |
+            /home/runner/builds/**
+
 
       - name: Release check
         uses: softprops/action-gh-release@v1
