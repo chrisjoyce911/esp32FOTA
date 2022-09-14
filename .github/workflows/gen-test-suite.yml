@@ -71,6 +71,21 @@ jobs:
           full_ino_path=`find /home/runner/work/ | grep "${{ matrix.sketch }}"`
           echo -e "#define FOTA_URL \"${{ inputs.manifest_url }}\"\n$(cat $full_ino_path)" > $full_ino_path
 
+
+      - name: Inject TLS Cert if applicable
+        if: inputs.manifest_port == "443" or inputs.manifest_port == "4433"
+        run: |
+          full_rootca_path=`find /home/runner/work/ | grep "progmem/root_ca.h"`
+          ssl_host="${{ inputs.manifest_host }}"
+          # prefix="const char* ${ssl_host//[^a-zA-Z0-9]/_}_ca =\\"
+          prefix="const char* root_ca =\\"
+          suffix="\"\";"
+          echo $prefix > $full_rootca_path
+          openssl s_client -showcerts -connect $ssl_host:${{ inputs.manifest_port }} </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | awk '{print "\"" $0 "\\n\"\\"}' >> $full_rootca_path
+          echo $suffix >> $full_rootca_path
+          cat $full_rootca_path
+
+
       - name: ${{ matrix.sketch }}
         uses: ArminJo/arduino-test-compile@v3
         with:
@@ -156,5 +171,3 @@ jobs:
         with:
           files: |
             /home/runner/builds/**
-
-
