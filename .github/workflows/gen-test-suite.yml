@@ -1,3 +1,4 @@
+Name: Dispatchable build
 on:
   workflow_dispatch:
     inputs:
@@ -45,17 +46,18 @@ jobs:
 
   matrix_build:
 
-    name: ${{ matrix.sketch }}@${{ matrix.test-stage }}
+    name: ${{ matrix.sketch }}
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        include:
-          - { test-stage: "1", sketch:"1.nosecurity.ino", ... }
-          - { test-stage: "2", sketch:"2.cert-in-spiffs.ino", ... }
-          - { test-stage: "3", sketch:"3.cert-in-progmem.ino", ... }
-          - { test-stage: "4", sketch:"4.cert-in-littlefs.ino", ... }
-          - { test-stage: "5", sketch:"5.final-stage.ino", ... }
+
+        sketch:
+        - 1.nosecurity.ino
+        - 2.cert-in-spiffs.ino
+        - 3.cert-in-progmem.ino
+        - 4.cert-in-littlefs.ino
+        - 5.final-stage.ino
 
     steps:
 
@@ -69,7 +71,7 @@ jobs:
           full_ino_path=`find . | grep "${{ matrix.sketch }}"`
           echo -e "#DEFINE FOTA_URL \"${{ inputs.manifest_url }}\"\n$(cat $full_ino_path)" > $full_ino_path
 
-      - name: ${{ matrix.sketch }}@${{ matrix.test-stage }}
+      - name: ${{ matrix.sketch }}
         uses: ArminJo/arduino-test-compile@v3
         with:
           platform-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_dev_index.json
@@ -140,4 +142,5 @@ jobs:
         with:
           files: |
             /home/runner/builds/**
+
 
