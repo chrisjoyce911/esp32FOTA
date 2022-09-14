@@ -89,7 +89,7 @@ jobs:
       - name: Save compiled binaries
         run: |
           mkdir -p /home/runner/builds
-          full_ino_bin_path=`find /home/runner/work/ | grep "${{ matrix.sketch }}.ino.bin"`
+          full_ino_bin_path=`find /home/runner/work/ | grep "${{ matrix.sketch }}.bin"`
           cp $full_ino_bin_path /home/runner/builds/
 
       - name: Create filesystem images
