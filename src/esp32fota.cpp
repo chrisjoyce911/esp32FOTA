@@ -444,11 +444,13 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
     semver_free(&_payloadVersion);
 
     if(doc["version"].is<uint16_t>()) {
-        log_i("JSON version: %d (int)", doc["version"].as<uint16_t>());
-        _payloadVersion = semver_t {doc["version"].as<uint16_t>()};
+        uint16_t v = doc["version"].as<uint16_t>();
+        log_i("JSON version: %d (int)", v);
+        _payloadVersion = semver_t {v};
     } else if (doc["version"].is<const char *>()) {
-        log_i("JSON version: %s (semver)", doc["version"].as<const char *>() );
-        if (semver_parse(doc["version"].as<const char *>(), &_payloadVersion)) {
+        const char* c = doc["version"].as<const char *>();
+        log_i("JSON version: %s (semver)", c );
+        if (semver_parse(c, &_payloadVersion)) {
             log_e( "Invalid semver string received in manifest. Defaulting to 0" );
             _payloadVersion = semver_t {0};
         }
@@ -460,15 +462,15 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
     debugSemVer("Payload firmware version", &_payloadVersion );
 
     // Memoize some values to help with the decision tree
-    bool has_url        = doc["url"].is<String>();
-    uint16_t portnum    = doc["port"].as<uint16_t>();
-    bool has_firmware   = doc["bin"].is<String>();
-    bool has_hostname   = doc["host"].is<String>();
-    bool has_port       = doc["port"].is<uint16_t>();
+    bool has_url        = doc.containsKey("url") && doc["url"].is<String>();
+    bool has_firmware   = doc.containsKey("bin") && doc["bin"].is<String>();
+    bool has_hostname   = doc.containsKey("host") && doc["host"].is<String>();
+    bool has_port       = doc.containsKey("port") && doc["port"].is<uint16_t>();
+    uint16_t portnum    = has_port ? doc["port"].as<uint16_t>() : 0;
     bool has_tls        = has_port ? (portnum  == 443 || portnum  == 4433) : false;
-    bool has_spiffs     = doc["spiffs"].is<String>();
-    bool has_littlefs   = doc["littlefs"].is<String>();
-    bool has_fatfs      = doc["fatfs"].is<String>();
+    bool has_spiffs     = doc.containsKey("spiffs") && doc["spiffs"].is<String>();
+    bool has_littlefs   = doc.containsKey("littlefs") && doc["littlefs"].is<String>();
+    bool has_fatfs      = doc.containsKey("fatfs") && doc["fatfs"].is<String>();
     bool has_filesystem = has_littlefs || has_spiffs || has_fatfs;
 
     String protocol     = has_tls ? "https" : "http";
@@ -494,7 +496,13 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
             _flashFileSystemUrl = protocol + "://" + doc["host"].as<String>() + ":" + String( portnum  ) + flashFSPath;
         }
     } else { // JSON was malformed - no firmware target was provided
-        log_e("JSON manifest was missing both 'url' and 'host'/'port'/'bin' keys");
+        log_e("JSON manifest was missing one of the following keys: url=%s, host: %s, port: %s, bin: %s",
+           !has_url?"true":"false",
+           !has_hostname?"true":"false",
+           !has_port?"true":"false",
+           !has_firmware?"true":"false"
+        );
+        serializeJsonPretty(doc, Serial);
         return false;
     }
 
