@@ -2,13 +2,21 @@ on:
   push:
     branches:
       - master
+
+  pull_request:
+    branches:
+      - master
   workflow_dispatch:
-    inputs:
-      firmware_type:
-        description: 'Firmware Type'
-        default: 'esp32-fota-http'
-        required: true
-        type: string
+  #push:
+    #branches:
+      #- master
+  #workflow_dispatch:
+    #inputs:
+      #firmware_type:
+        #description: 'Firmware Type'
+        #default: 'esp32-fota-http'
+        #required: true
+        #type: string
       #manifest_url:
         #description: 'Complete URL (where the JSON Manifest will be hosted)'
         #required: true
