@@ -26,7 +26,7 @@
     "host": "FIRMWARE_HOST",
     "port": "FIRMWARE_PORT",
     "bin": "FIRMWARE_PATH/4.cert-in-littlefs.ino.bin?raw=true",
-    "spiffs": "FIRMWARE_PATH/4.cert-in-littlefs.littlefs.bin?raw=true"
+    "littlefs": "FIRMWARE_PATH/4.cert-in-littlefs.littlefs.bin?raw=true"
 },
 {
     "type": "FIRMWARE_TYPE",
@@ -35,4 +35,3 @@
     "port": "FIRMWARE_PORT",
     "bin": "FIRMWARE_PATH/5.final-stage.ino.bin?raw=true"
 }]
-
