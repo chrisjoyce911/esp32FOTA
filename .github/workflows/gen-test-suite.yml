@@ -93,7 +93,7 @@ jobs:
           cd /home/runner/work/
           full_ino_bin_path=`find . | grep "${{ matrix.sketch }}.bin"`
           echo "Bin path: $full_ino_bin_path"
-          cp $full_ino_bin_path /home/runner/builds/${{ matrix.sketch }}.bin
+          cp "$full_ino_bin_path" /home/runner/builds/${{ matrix.sketch }}.bin
 
       - name: Create filesystem images
         run: |
