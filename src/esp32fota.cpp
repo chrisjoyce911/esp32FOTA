@@ -309,8 +309,8 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
 
     if( extraHTTPHeaders.size() > 0 ) {
       // add custom headers provided by user e.g. http.addHeader("Authorization", "Basic " + auth)
-      for( const auto& [headername, headervalue]: extraHTTPHeaders ) {
-        http.addHeader(headername, headervalue);
+      for( const auto &header : extraHTTPHeaders ) {
+        http.addHeader(header.first, header.second);
       }
     }
 
@@ -379,7 +379,7 @@ void esp32FOTA::execOTA( int partition, bool restart_after )
     if( _check_sig ) {
         stream.readBytes( signature, 512 );
     }
-    Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!");
+    Serial.printf("Begin %s OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!", partition==U_FLASH?"Firmware":"Filesystem");
     // No activity would appear on the Serial monitor
     // So be patient. This may take 2 - 5mins to complete
     size_t written = Update.writeStream( stream );
@@ -485,6 +485,14 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
         )
       : "";
 
+    log_i("JSON manifest provided keys: url=%s, host: %s, port: %s, bin: %s, fs: [%s]",
+        has_url?"true":"false",
+        has_hostname?"true":"false",
+        has_port?"true":"false",
+        has_firmware?"true":"false",
+        flashFSPath.c_str()
+    );
+
     if( has_url ) { // Basic scenario: a complete URL was provided in the JSON manifest, all other keys will be ignored
         _firmwareUrl = doc["url"].as<String>();
         if( has_hostname ) { // If the manifest provides both, warn the user
@@ -496,12 +504,7 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
             _flashFileSystemUrl = protocol + "://" + doc["host"].as<String>() + ":" + String( portnum  ) + flashFSPath;
         }
     } else { // JSON was malformed - no firmware target was provided
-        log_e("JSON manifest was missing one of the following keys: url=%s, host: %s, port: %s, bin: %s",
-           !has_url?"true":"false",
-           !has_hostname?"true":"false",
-           !has_port?"true":"false",
-           !has_firmware?"true":"false"
-        );
+        log_e("JSON manifest was missing one of the required keys :(" );
         serializeJsonPretty(doc, Serial);
         return false;
     }
@@ -560,8 +563,8 @@ bool esp32FOTA::execHTTPcheck()
 
     if( extraHTTPHeaders.size() > 0 ) {
       // add custom headers provided by user e.g. http.addHeader("Authorization", "Basic " + auth)
-      for( const auto& [headername, headervalue]: extraHTTPHeaders ) {
-        http.addHeader(headername, headervalue);
+      for( const auto &header : extraHTTPHeaders ) {
+        http.addHeader(header.first, header.second);
       }
     }
 
