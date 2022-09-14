@@ -138,7 +138,7 @@ jobs:
           sed -i -e 's/FIRMWARE_TYPE/${{ inputs.firmware_type }}/g' $firmware_json_path
           sed -i -e 's/FIRMWARE_HOST/${{ inputs.manifest_host }}/g' $firmware_json_path
           sed -i -e 's/FIRMWARE_PORT/${{ inputs.manifest_port }}/g' $firmware_json_path
-          sed -i -e 's/FIRMWARE_PATH/${{ inputs.manifest_bin_path }}/g' $firmware_json_path
+          sed -i -e 's~FIRMWARE_PATH~${{ inputs.manifest_bin_path }}~g' $firmware_json_path
           cat $firmware_json_path
 
       - name: Release check
