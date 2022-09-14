@@ -73,7 +73,7 @@ jobs:
 
 
       - name: Inject TLS Cert if applicable
-        if: inputs.manifest_port == "443" or inputs.manifest_port == "4433"
+        if: (inputs.manifest_port  == '443' || inputs.manifest_port  == '4433')
         run: |
           full_rootca_path=`find /home/runner/work/ | grep "progmem/root_ca.h"`
           ssl_host="${{ inputs.manifest_host }}"
@@ -171,3 +171,5 @@ jobs:
         with:
           files: |
             /home/runner/builds/**
+
+
