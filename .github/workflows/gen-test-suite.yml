@@ -1,0 +1,186 @@
+name: Dispatchable build
+on:
+  workflow_dispatch:
+    inputs:
+      firmware_type:
+        description: 'Firmware Type'
+        default: 'esp32-fota-http'
+        required: true
+        type: string
+      manifest_url:
+        description: 'Complete URL (where the JSON Manifest will be hosted)'
+        required: true
+        default: 'https://github.com/[user]/[repo]/raw/[branch]/[path to manifest]/firmware.json'
+        type: string
+      manifest_host:
+        description: 'Hostname (where the binaries will be hosted)'
+        required: true
+        default: 'github.com'
+        type: string
+      manifest_port:
+        description: 'Port (e.g 80 or 443)'
+        required: true
+        default: '443'
+        type: string
+      manifest_bin_path:
+        description: 'Path (no trailing slash)'
+        required: true
+        default: '/[user]/[repo]/blob/[branch]/[path to binaries]'
+        type: string
+      board_fqbn:
+        description: 'Board FQBN (for arduino-cli)'
+        required: true
+        default: 'esp32:esp32:esp32'
+        type: string
+      partition_scheme:
+        description: 'Partition scheme'
+        required: true
+        type: choice
+        options:
+        - default
+        - min_spiffs
+        - large_spiffs
+        default: 'default'
+
+jobs:
+
+  matrix_build:
+
+    name: ${{ matrix.sketch }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+
+        sketch:
+        - 1.nosecurity.ino
+        - 2.cert-in-spiffs.ino
+        - 3.cert-in-progmem.ino
+        - 4.cert-in-littlefs.ino
+        - 5.final-stage.ino
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Inject Manifest URL
+        run: |
+          full_ino_path=`find /home/runner/work/ | grep "${{ matrix.sketch }}"`
+          echo -e "#define FOTA_URL \"${{ inputs.manifest_url }}\"\n$(cat $full_ino_path)" > $full_ino_path
+
+
+      - name: Inject TLS Cert if applicable
+        if: (inputs.manifest_port  == '443' || inputs.manifest_port  == '4433')
+        run: |
+          full_rootca_path=`find /home/runner/work/ | grep "progmem/root_ca.h"`
+          ssl_host="${{ inputs.manifest_host }}"
+          prefix="const char* root_ca =\\"
+          suffix="\"\";"
+          echo $prefix > $full_rootca_path
+          openssl s_client -showcerts -connect $ssl_host:${{ inputs.manifest_port }} </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | awk '{print "\"" $0 "\\n\"\\"}' >> $full_rootca_path
+          echo $suffix >> $full_rootca_path
+          cat $full_rootca_path
+
+
+      - name: ${{ matrix.sketch }}
+        uses: ArminJo/arduino-test-compile@v3
+        with:
+          platform-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_dev_index.json
+          arduino-board-fqbn: ${{ inputs.board_fqbn }}:PartitionScheme=${{inputs.partition_scheme}}
+          required-libraries: ArduinoJson
+          extra-arduino-lib-install-args: --no-deps
+          extra-arduino-cli-args: "--warnings default " # see https://github.com/ArminJo/arduino-test-compile/issues/28
+          sketch-names: ${{ matrix.sketch }}
+          set-build-path: true
+          # build-properties: ${{ toJson(matrix.build-properties) }}
+          # arduino-platform: esp32:esp32@${{ matrix.sdk-version }}
+          # extra-arduino-cli-args: ${{ matrix.extra-arduino-cli-args }}
+          # debug-install: true
+
+      - name: Save compiled binaries
+        run: |
+          mkdir -p /home/runner/builds
+          ls /home/runner/builds -la
+          cd /home/runner/work/
+          full_ino_bin_path=`find . | grep "build/${{ matrix.sketch }}.bin"`
+          echo "Bin path: $full_ino_bin_path"
+          cp "$full_ino_bin_path" /home/runner/builds/${{ matrix.sketch }}.bin
+
+      - name: Prepare data folder if applicable
+        if: (inputs.manifest_port  == '443' || inputs.manifest_port  == '4433')
+        run: |
+          full_rootca_path=`find /home/runner/work/ | grep "anyFS/data/root_ca.pem"`
+          ssl_host="${{ inputs.manifest_host }}"
+          openssl s_client -showcerts -connect $ssl_host:${{ inputs.manifest_port }} </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > $full_rootca_path
+          cat $full_rootca_path
+
+      - name: Create filesystem images
+        run: |
+          # ooh that's dirty :-)
+          default_size=0x170000
+          large_spiffs_size=0x6F0000
+          min_spiffs_size=0x30000
+
+          mkspiffs_esp32=~/.arduino15/packages/esp32*/tools/mkspiffs/*/mkspiffs
+          mklittlefs_esp32=~/.arduino15/packages/esp32*/tools/mklittlefs/*/mklittlefs
+          echo "mkspiffs path: $mkspiffs_esp32"
+          echo "mklittlefs path: $mklittlefs_esp32"
+          $mkspiffs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s $${{inputs.partition_scheme}}_size /home/runner/builds/2.cert-in-spiffs.spiffs.bin
+          $mklittlefs_esp32 -c examples/anyFS/data/ -p 256 -b 4096 -s $${{inputs.partition_scheme}}_size /home/runner/builds/4.cert-in-littlefs.littlefs.bin
+          ls /home/runner/builds -la
+
+      - name: Upload artifact for Stage ${{ matrix.test-stage }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: TestSuite
+          path: |
+            /home/runner/builds/**
+
+
+  post_build:
+    name: Gather Artefacts
+    runs-on: ubuntu-latest
+    # wait until matrix jobs are all finished
+    needs: matrix_build
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Create artifacts dir
+        run: mkdir -p /home/runner/builds
+
+      #- name: Download artifacts
+        #uses: actions/download-artifact@v2
+        #with:
+          #path: /home/runner/builds
+
+      - name: Polulate JSON Manifest
+        run: |
+          firmware_json_path=/home/runner/builds/firmware.json
+          cp .github/templates/firmware.test-suite.json $firmware_json_path
+          sed -i -e 's/FIRMWARE_TYPE/${{ inputs.firmware_type }}/g' $firmware_json_path
+          sed -i -e 's/FIRMWARE_HOST/${{ inputs.manifest_host }}/g' $firmware_json_path
+          sed -i -e 's/FIRMWARE_PORT/${{ inputs.manifest_port }}/g' $firmware_json_path
+          sed -i -e 's~FIRMWARE_PATH~${{ inputs.manifest_bin_path }}~g' $firmware_json_path
+          cat $firmware_json_path
+
+      - name: Update artifacts with new JSON Manifest
+        uses: actions/upload-artifact@v2
+        with:
+          name: TestSuite
+          path: |
+            /home/runner/builds/**
+
+
+      - name: Release check
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            /home/runner/builds/**
+
+

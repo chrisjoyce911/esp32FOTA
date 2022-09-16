@@ -8,93 +8,154 @@
    Author: Moritz Meintker <https://thinksilicon.de>
    Remarks: Re-written/removed a bunch of functions around HTTPS. The library is
             now URL-agnostic. This means if you provide an https://-URL it will
-            use the root_ca.pem (needs to be provided via SPIFFS) to verify the
-            server certificate and then download the ressource through an encrypted
-            connection unless you set the allow_insecure_https option.
+            use the root_ca.pem (needs to be provided via PROGMEM/SPIFFS/LittleFS or SD)
+            to verify the server certificate and then download the ressource through an
+            encrypted connection unless you set the allow_insecure_https option.
             Otherwise it will just use plain HTTP which will still offer to sign
             your firmware image.
+
+   Date: 2022-09-12
+   Author: tobozo <https://github.com/tobozo>
+   Changes:
+     - Abstracted away filesystem
+     - Refactored some code blocks
+     - Added spiffs/littlefs/fatfs updatability
+     - Made crypto assets (pub key, rootca) loadable from multiple sources
+   Roadmap:
+     - Firmware/FlashFS update order (SPIFFS/LittleFS first or last?)
+     - Archive support for gz/targz formats
+       - firmware.gz + spiffs.gz in manifest
+       - bundle.tar.gz [ firmware + filesystem ] in manifest
+     - Update from Stream (e.g deported update via SD, http or gzupdater)
+
 */
 
 #include "esp32fota.h"
-#include <Arduino.h>
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <Update.h>
-#include "ArduinoJson.h"
-#include <FS.h>
-#include <SPIFFS.h>
-
 
 #include "mbedtls/pk.h"
 #include "mbedtls/md.h"
 #include "mbedtls/md_internal.h"
 #include "esp_ota_ops.h"
 
-#include <WiFiClientSecure.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
-esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, boolean validate, boolean allow_insecure_https)
+// Filesystem helper for signature check and pem validation
+// This is abstracted away to allow storage alternatives such
+// as PROGMEM, SD, SPIFFS, LittleFS or FatFS
+
+bool CryptoFileAsset::fs_read_file()
+{
+    File file = fs->open( path );
+    size_t fsize = file.size();
+    // if( file->size() > ESP.getFreeHeap() ) return false;
+    if( !file ) {
+        log_e( "Failed to open %s for reading", path );
+        return false;
+    }
+    contents = ""; // make sure the output bucket is empty
+    while( file.available() ) {
+        contents.push_back( file.read() );
+    }
+    file.close();
+    return contents.size()>0 && fsize==contents.size();
+}
+
+
+size_t CryptoFileAsset::size()
+{
+    if( len > 0 ) { // already stored, no need to access filesystem
+        return len;
+    }
+    if( fs ) { // fetch file contents
+        if( ! fs_read_file() ) {
+          log_w("Invalid contents!");
+          return 0;
+        }
+        len = contents.size();
+    } else {
+        log_e("No filesystem was set for %s!", path);
+        return 0;
+    }
+    return len;
+}
+
+
+
+
+esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, bool validate, bool allow_insecure_https)
 {
     _firmwareType = firmwareType;
     _firmwareVersion = semver_t{firmwareVersion};
     _check_sig = validate;
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
-
-    char version_no[256] = {'\0'};     // If we are passed firmwareVersion as an int, we're assuming it's a major version
-    semver_render(&_firmwareVersion, version_no);
-    log_i("Current firmware version: %s", version_no );
-
+    setupCryptoAssets();
+    debugSemVer("Current firmware version", &_firmwareVersion );
 }
 
-esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, boolean validate, boolean allow_insecure_https)
+
+esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, bool validate, bool allow_insecure_https)
 {
     if (semver_parse(firmwareSemanticVersion.c_str(), &_firmwareVersion)) {
         log_e( "Invalid semver string %s passed to constructor. Defaulting to 0", firmwareSemanticVersion.c_str() );
         _firmwareVersion = semver_t {0};
     }
-
     _firmwareType = firmwareType;
     _check_sig = validate;
     _allow_insecure_https = allow_insecure_https;
     useDeviceID = false;
-
-    char version_no[256] = {'\0'};
-    semver_render(&_firmwareVersion, version_no);
-    log_i("Current firmware version: %s", version_no );
-
+    setupCryptoAssets();
+    debugSemVer("Current firmware version", &_firmwareVersion );
 }
 
 
-esp32FOTA::~esp32FOTA() {
+esp32FOTA::~esp32FOTA()
+{
     semver_free(&_firmwareVersion);
     semver_free(&_payloadVersion);
 }
 
-// Check file signature
+
+void esp32FOTA::setCertFileSystem( fs::FS *cert_filesystem )
+{
+    _fs = cert_filesystem;
+    setupCryptoAssets();
+}
+
+
+// Used for legacy behaviour when SPIFFS and RootCa/PubKey had default values
+// New recommended method is to use setPubKey() and setRootCA() with CryptoMemAsset ot CryptoFileAsset objects.
+void esp32FOTA::setupCryptoAssets()
+{
+    if( _fs ) {
+        PubKey = (CryptoAsset*)(new CryptoFileAsset( rsa_key_pub_default_path, _fs  ));
+        RootCA = (CryptoAsset*)(new CryptoFileAsset( root_ca_pem_default_path, _fs  ));
+    }
+}
+
+
+
+// SHA-Verify the OTA partition after it's been written
 // https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
 // https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
-bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size ) {
+bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
+{
     int ret = 1;
+    size_t pubkeylen = PubKey ? PubKey->size()+1 : 0;
+    const char* pubkeystr = PubKey->get();
+
+    if( pubkeylen <= 1 ) {
+        return false;
+    }
+
     mbedtls_pk_context pk;
     mbedtls_md_context_t rsa;
+    mbedtls_pk_init( &pk );
 
-    { // Open RSA public key:
-        File public_key_file = SPIFFS.open( "/rsa_key.pub" );
-        if( !public_key_file ) {
-            log_e( "Failed to open rsa_key.pub for reading" );
-            return false;
-        }
-        std::string public_key = "";
-        while( public_key_file.available() ){
-            public_key.push_back( public_key_file.read() );
-        }
-        public_key_file.close();
-
-        mbedtls_pk_init( &pk );
-        if( ( ret = mbedtls_pk_parse_public_key( &pk, (unsigned char *)public_key.c_str(), public_key.length() +1 ) ) != 0 ) {
-            log_e( "Reading public key failed\n  ! mbedtls_pk_parse_public_key %d\n\n", ret );
-            return false;
-        }
+    if( ( ret = mbedtls_pk_parse_public_key( &pk, (const unsigned char*)pubkeystr, pubkeylen ) ) != 0 ) {
+        log_e( "Reading public key failed\n  ! mbedtls_pk_parse_public_key %d\n\n", ret );
+        return false;
     }
 
     if( !mbedtls_pk_can_do( &pk, MBEDTLS_PK_RSA ) ) {
@@ -102,9 +163,8 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
         return false;
     }
 
-
     const esp_partition_t* partition = esp_ota_get_next_update_partition(NULL);
-   
+
     if( !partition ) {
         log_e( "Could not find update partition!" );
         return false;
@@ -114,7 +174,7 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
     mbedtls_md_init( &rsa );
     mbedtls_md_setup( &rsa, mdinfo, 0 );
     mbedtls_md_starts( &rsa );
-    
+
     int bytestoread = SPI_FLASH_SEC_SIZE;
     int bytesread = 0;
     int size = firmware_size;
@@ -124,41 +184,44 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
         log_e( "malloc failed" );
         return false;
     }
+
     //Serial.printf( "Reading partition (%i sectors, sec_size: %i)\r\n", size, bytestoread );
     while( bytestoread > 0 ) {
-      //Serial.printf( "Left: %i (%i)               \r", size, bytestoread );
-    
-      if( ESP.partitionRead( partition, bytesread, (uint32_t*)_buffer, bytestoread ) ) {
-	// Debug output for the purpose of comparing with file
-        /*for( int i = 0; i < bytestoread; i++ ) {
-          if( ( i % 16 ) == 0 ) {
-            Serial.printf( "\r\n0x%08x\t", i + bytesread );
-          }
-          Serial.printf( "%02x ", (uint8_t*)_buffer[i] );
-        }*/
+        //Serial.printf( "Left: %i (%i)               \r", size, bytestoread );
 
-        mbedtls_md_update( &rsa, (uint8_t*)_buffer, bytestoread );
+        if( ESP.partitionRead( partition, bytesread, (uint32_t*)_buffer, bytestoread ) ) {
+            // Debug output for the purpose of comparing with file
+            /*for( int i = 0; i < bytestoread; i++ ) {
+              if( ( i % 16 ) == 0 ) {
+                Serial.printf( "\r\n0x%08x\t", i + bytesread );
+              }
+              Serial.printf( "%02x ", (uint8_t*)_buffer[i] );
+            }*/
 
-        bytesread = bytesread + bytestoread;
-        size = size - bytestoread;
+            mbedtls_md_update( &rsa, (uint8_t*)_buffer, bytestoread );
 
-        if( size <= SPI_FLASH_SEC_SIZE ) {
-            bytestoread = size;
+            bytesread = bytesread + bytestoread;
+            size = size - bytestoread;
+
+            if( size <= SPI_FLASH_SEC_SIZE ) {
+                bytestoread = size;
+            }
+        } else {
+            log_e( "partitionRead failed!" );
+            return false;
         }
-      } else {
-        log_e( "partitionRead failed!" );
-        return false;
-      }
     }
+
     free( _buffer );
 
     unsigned char *hash = (unsigned char*)malloc( mdinfo->size );
+    if(!hash){
+        log_e( "malloc failed" );
+        return false;
+    }
     mbedtls_md_finish( &rsa, hash );
 
-    ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256,
-        hash, mdinfo->size,
-	(unsigned char*)signature, 512
-    );
+    ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256, hash, mdinfo->size, (unsigned char*)signature, 512 );
 
     free( hash );
     mbedtls_md_free( &rsa );
@@ -166,69 +229,114 @@ bool esp32FOTA::validate_sig( unsigned char *signature, uint32_t firmware_size )
     if( ret == 0 ) {
         return true;
     }
-    // overwrite the frist few bytes so this partition won't boot!
+
+    // validation failed, overwrite the first few bytes so this partition won't boot!
 
     ESP.partitionEraseRange( partition, 0, ENCRYPTED_BLOCK_SIZE);
 
     return false;
 }
+
+
 // OTA Logic
 void esp32FOTA::execOTA()
 {
+    if( _flashFileSystemUrl != "" ) { // handle the spiffs partition first
+        if( _fs ) { // Possible risk of overwriting certs and signatures, cancel flashing!
+            log_e("Cowardly refusing to overwrite U_SPIFFS. Use setCertFileSystem(nullptr) along with setPubKey()/setCAPem() to enable this feature.");
+        } else {
+            log_i("Will update U_SPIFFS");
+            execOTA( U_SPIFFS, false );
+        }
+    } else {
+      log_i("This update is for U_FLASH only");
+    }
+    // handle the application partition and restart on success
+    execOTA( U_FLASH, true );
+}
+
+
+void esp32FOTA::execOTA( int partition, bool restart_after )
+{
+    String UpdateURL = "";
+
+    switch( partition ) {
+        case U_SPIFFS: // spiffs/littlefs/fatfs partition
+            if( _flashFileSystemUrl == "" ) {
+                log_i("[SKIP] No spiffs/littlefs/fatfs partition was speficied");
+                return;
+            }
+            UpdateURL = _flashFileSystemUrl;
+        break;
+        case U_FLASH: // app partition (default)
+        default:
+            partition = U_FLASH;
+            UpdateURL = _firmwareUrl;
+        break;
+    }
+
     int contentLength = 0;
     bool isValidContentType = false;
+    const char* rootcastr = nullptr;
 
     HTTPClient http;
     WiFiClientSecure client;
     //http.setConnectTimeout( 1000 );
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    
-    log_i("Connecting to: %s\r\n", _firmwareUrl.c_str() );
-    if( _firmwareUrl.substring( 0, 5 ) == "https" ) {
+
+    log_i("Connecting to: %s\r\n", UpdateURL.c_str() );
+    if( UpdateURL.substring( 0, 5 ) == "https" ) {
         if (!_allow_insecure_https) {
-            // If we're downloading from secure URL use WifiClientSecure instead
-            // and provide the root_ca.pem
             log_i( "Loading root_ca.pem" );
-            //WiFiClientSecure client;
-            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
-            if( !root_ca_file ) {
-                log_e( "Could not open root_ca.pem" );
+            if( !RootCA || RootCA->size() == 0 ) {
+                log_e("A strict security context has been set but no RootCA was provided");
                 return;
             }
-            {
-                std::string root_ca = "";
-                while( root_ca_file.available() ){
-                    root_ca.push_back( root_ca_file.read() );
-                }
-                root_ca_file.close();
-                http.begin( _firmwareUrl, root_ca.c_str() );
+            rootcastr = RootCA->get();
+            if( !rootcastr ) {
+                log_e("Unable to get RootCA, aborting");
+                return;
             }
+            client.setCACert( rootcastr );
         } else {
             // We're downloading from a secure URL, but we don't want to validate the root cert.
             client.setInsecure();
-            http.begin(client, _firmwareUrl);
         }
+        http.begin( client, UpdateURL );
     } else {
-        http.begin( _firmwareUrl );
+        http.begin( UpdateURL );
     }
 
+    if( extraHTTPHeaders.size() > 0 ) {
+      // add custom headers provided by user e.g. http.addHeader("Authorization", "Basic " + auth)
+      for( const auto &header : extraHTTPHeaders ) {
+        http.addHeader(header.first, header.second);
+      }
+    }
+
+    // TODO: add more watched headers e.g. Authorization: Signature keyId="rsa-key-1",algorithm="rsa-sha256",signature="Base64(RSA-SHA256(signing string))"
     const char* get_headers[] = { "Content-Length", "Content-type" };
     http.collectHeaders( get_headers, 2 );
 
     int httpCode = http.GET();
-   
+
     if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
         contentLength = http.header( "Content-Length" ).toInt();
         String contentType = http.header( "Content-type" );
         if( contentType == "application/octet-stream" ) {
             isValidContentType = true;
-            
+        } else if( contentType == "application/gzip" ) {
+            // was gzipped by the server, needs decompression
+            // TODO: use gzStreamUpdater
+        } else if( contentType == "application/tar+gz" ) {
+            // was packaged and compressed, may contain more than one file
+            // TODO: use tarGzStreamUpdater
         }
     } else {
         // Connect to webserver failed
         // May be try?
         // Probably a choppy network?
-        log_i( "Connection to %s failed. Please check your setup", _firmwareUrl );
+        log_i( "Connection to %s failed with httpCode %i. Please check your setup", UpdateURL, httpCode );
         // retry??
         // execOTA();
     }
@@ -237,103 +345,112 @@ void esp32FOTA::execOTA()
     log_i("contentLength : %i, isValidContentType : %s", contentLength, String(isValidContentType));
 
     // check contentLength and content type
-    if( contentLength && isValidContentType ) {
-        WiFiClient& client = http.getStream();
+    if( !contentLength || !isValidContentType ) {
+        Serial.println("There was no content in the http response");
+        http.end();
+        return;
+    }
 
-        if( _check_sig ) {
-           // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
-           contentLength = contentLength - 512;
-        }
-        // Check if there is enough to OTA Update
-        bool canBegin = Update.begin(contentLength);
+    Stream& stream = http.getStream();
 
-        // If yes, begin
-        if( canBegin ) {
-            unsigned char signature[512];
-            if( _check_sig ) {
-               client.readBytes( signature, 512 );
-            }
-            Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!");
-            // No activity would appear on the Serial monitor
-            // So be patient. This may take 2 - 5mins to complete
-            size_t written = Update.writeStream(client);
+    if( _check_sig ) {
+        // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
+        contentLength = contentLength - 512;
+    }
+    // Check if there is enough available space on the partition to perform the Update
+    bool canBegin = Update.begin( contentLength, partition );
 
-            if (written == contentLength)
-            {
-                Serial.println("Written : " + String(written) + " successfully");
-            }
-            else
-            {
-                Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Retry?");
-                // retry??
-                // execOTA();
-            }
+    if( !canBegin ) {
+        Serial.println("Not enough space to begin OTA");
+        http.end();
+        return;
+    }
 
-            if (Update.end())
-            {
-                if( _check_sig ) {
-                   if( !validate_sig( signature, contentLength ) ) {
-                       
-                        const esp_partition_t* partition = esp_ota_get_running_partition();
-                        esp_ota_set_boot_partition( partition );
+    if( _ota_progress_callback ) {
+        Update.onProgress( _ota_progress_callback );
+    } else {
+        Update.onProgress( [](size_t progress, size_t size) {
+            if( progress == size || progress == 0 ) Serial.println();
+            Serial.print(".");
+        });
+    }
 
-                        log_e( "Signature check failed!" );
-                        http.end();
-                        ESP.restart();
-                        return;
-                   } else {
-                        log_i( "Signature OK" );
-                   }
-                }
-                Serial.println("OTA done!");
-                if (Update.isFinished())
-                {
-                    Serial.println("Update successfully completed. Rebooting.");
-                    http.end();
-                    ESP.restart();
-                }
-                else
-                {
-                    Serial.println("Update not finished? Something went wrong!");
-                }
+    unsigned char signature[512];
+    if( _check_sig ) {
+        stream.readBytes( signature, 512 );
+    }
+    Serial.printf("Begin %s OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!", partition==U_FLASH?"Firmware":"Filesystem");
+    // No activity would appear on the Serial monitor
+    // So be patient. This may take 2 - 5mins to complete
+    size_t written = Update.writeStream( stream );
+
+    if (written == contentLength) {
+        Serial.println("Written : " + String(written) + " successfully");
+    } else {
+        Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Retry?");
+        // retry??
+        // execOTA();
+    }
+
+    if (!Update.end()) {
+      Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+      return;
+    }
+
+    if( _check_sig ) { // check signature
+        if( !validate_sig( signature, contentLength ) ) {
+            if( partition == U_FLASH ) { // partition was marked as bootable, but signature validation failed, undo!
+                const esp_partition_t* partition = esp_ota_get_running_partition();
+                esp_ota_set_boot_partition( partition );
+            } else if( partition == U_SPIFFS ) { // bummer!
+                // SPIFFS/LittleFS partition was already overwritten and unlike U_FLASH (has OTA0/OTA1) this can't be rolled back.
+                // TODO: onValidationFail decision tree with [erase-partition, mark-unsafe, keep-as-is]
             }
-            else
-            {
-                Serial.println("Error Occurred. Error #: " + String(Update.getError()));
-            }
-        }
-        else
-        {
-            // not enough space to begin OTA
-            // Understand the partitions and
-            // space availability
-            Serial.println("Not enough space to begin OTA");
+            Serial.println( "Signature check failed!" );
             http.end();
+            if( restart_after ) {
+                Serial.println("Rebooting.");
+                ESP.restart();
+            }
+            return;
+        } else {
+            log_i( "Signature OK" );
         }
     }
-    else
-    {
-        log_e("There was no content in the response");
+    Serial.println("OTA done!");
+    if (Update.isFinished()) {
+        Serial.println("Update successfully completed.");
         http.end();
+        if( restart_after ) {
+            Serial.println("Rebooting.");
+            ESP.restart();
+        }
+        return;
+    } else {
+        Serial.println("Update not finished? Something went wrong!");
     }
 }
 
-bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
 
-    if(strcmp(JSONDocument["type"].as<const char *>(), _firmwareType.c_str()) != 0) {
-        log_i("Payload type in manifest %s doesn't match current firmware %s", JSONDocument["type"].as<const char *>(), _firmwareType.c_str() );
+bool esp32FOTA::checkJSONManifest(JsonVariant doc)
+{
+    if(strcmp(doc["type"].as<const char *>(), _firmwareType.c_str()) != 0) {
+        log_i("Payload type in manifest %s doesn't match current firmware %s", doc["type"].as<const char *>(), _firmwareType.c_str() );
         log_i("Doesn't match type: %s", _firmwareType.c_str() );
         return false;  // Move to the next entry in the manifest
     }
-    log_i("Payload type in manifest %s matches current firmware %s", JSONDocument["type"].as<const char *>(), _firmwareType.c_str() );
+    log_i("Payload type in manifest %s matches current firmware %s", doc["type"].as<const char *>(), _firmwareType.c_str() );
 
     semver_free(&_payloadVersion);
-    if(JSONDocument["version"].is<uint16_t>()) {
-        log_i("JSON version: %d (int)", JSONDocument["version"].as<uint16_t>());
-        _payloadVersion = semver_t {JSONDocument["version"].as<uint16_t>()};
-    } else if (JSONDocument["version"].is<const char *>()) {
-        log_i("JSON version: %s (semver)", JSONDocument["version"].as<const char *>() );
-        if (semver_parse(JSONDocument["version"].as<const char *>(), &_payloadVersion)) {
+
+    if(doc["version"].is<uint16_t>()) {
+        uint16_t v = doc["version"].as<uint16_t>();
+        log_i("JSON version: %d (int)", v);
+        _payloadVersion = semver_t {v};
+    } else if (doc["version"].is<const char *>()) {
+        const char* c = doc["version"].as<const char *>();
+        log_i("JSON version: %s (semver)", c );
+        if (semver_parse(c, &_payloadVersion)) {
             log_e( "Invalid semver string received in manifest. Defaulting to 0" );
             _payloadVersion = semver_t {0};
         }
@@ -342,28 +459,53 @@ bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
         _payloadVersion = semver_t {0};
     }
 
-    char version_no[256] = {'\0'};
-    semver_render(&_payloadVersion, version_no);
-    log_i("Payload firmware version: %s", version_no );
+    debugSemVer("Payload firmware version", &_payloadVersion );
 
+    // Memoize some values to help with the decision tree
+    bool has_url        = doc.containsKey("url") && doc["url"].is<String>();
+    bool has_firmware   = doc.containsKey("bin") && doc["bin"].is<String>();
+    bool has_hostname   = doc.containsKey("host") && doc["host"].is<String>();
+    bool has_port       = doc.containsKey("port") && doc["port"].is<uint16_t>();
+    uint16_t portnum    = has_port ? doc["port"].as<uint16_t>() : 0;
+    bool has_tls        = has_port ? (portnum  == 443 || portnum  == 4433) : false;
+    bool has_spiffs     = doc.containsKey("spiffs") && doc["spiffs"].is<String>();
+    bool has_littlefs   = doc.containsKey("littlefs") && doc["littlefs"].is<String>();
+    bool has_fatfs      = doc.containsKey("fatfs") && doc["fatfs"].is<String>();
+    bool has_filesystem = has_littlefs || has_spiffs || has_fatfs;
 
-    if(JSONDocument["url"].is<String>()) {
-        // We were provided a complete URL in the JSON manifest - use it
-        _firmwareUrl = JSONDocument["url"].as<String>();
-        if(JSONDocument["host"].is<String>())  // If the manifest provides both, warn the user
+    String protocol     = has_tls ? "https" : "http";
+    String flashFSPath  =
+      has_filesystem
+      ? (
+        has_littlefs
+        ? doc["littlefs"].as<String>()
+        : has_spiffs
+          ? doc["spiffs"].as<String>()
+          : doc["fatfs"].as<String>()
+        )
+      : "";
+
+    log_i("JSON manifest provided keys: url=%s, host: %s, port: %s, bin: %s, fs: [%s]",
+        has_url?"true":"false",
+        has_hostname?"true":"false",
+        has_port?"true":"false",
+        has_firmware?"true":"false",
+        flashFSPath.c_str()
+    );
+
+    if( has_url ) { // Basic scenario: a complete URL was provided in the JSON manifest, all other keys will be ignored
+        _firmwareUrl = doc["url"].as<String>();
+        if( has_hostname ) { // If the manifest provides both, warn the user
             log_w("Manifest provides both url and host - Using URL");
-    } else if (JSONDocument["host"].is<String>() && JSONDocument["port"].is<uint16_t>() && JSONDocument["bin"].is<String>()){
-        // We were provided host/port/bin format - Build the URL
-        if( JSONDocument["port"].as<uint16_t>() == 443 || JSONDocument["port"].as<uint16_t>() == 4433 )
-            _firmwareUrl = String( "https://");
-        else
-            _firmwareUrl = String( "http://" );
-
-        _firmwareUrl += JSONDocument["host"].as<String>() + ":" + String( JSONDocument["port"].as<uint16_t>() ) + JSONDocument["bin"].as<String>();
-
-    } else {
-        // JSON was malformed - no firmware target was provided
-        log_e("JSON manifest was missing both 'url' and 'host'/'port'/'bin' keys");
+        }
+    } else if( has_firmware && has_hostname && has_port ) { // Precise scenario: Hostname, Port and Firmware Path were provided
+        _firmwareUrl = protocol + "://" + doc["host"].as<String>() + ":" + String( portnum  ) + doc["bin"].as<String>();
+        if( has_filesystem ) { // More complex scenario: the manifest also provides a [spiffs, littlefs or fatfs] partition
+            _flashFileSystemUrl = protocol + "://" + doc["host"].as<String>() + ":" + String( portnum  ) + flashFSPath;
+        }
+    } else { // JSON was malformed - no firmware target was provided
+        log_e("JSON manifest was missing one of the required keys :(" );
+        serializeJsonPretty(doc, Serial);
         return false;
     }
 
@@ -373,17 +515,16 @@ bool esp32FOTA::checkJSONManifest(JsonVariant JSONDocument) {
     return false;
 }
 
+
 bool esp32FOTA::execHTTPcheck()
 {
     String useURL;
+    const char* rootcastr = nullptr;
 
-    if (useDeviceID)
-    {
+    if (useDeviceID) {
         // String deviceID = getDeviceID() ;
         useURL = checkURL + "?id=" + getDeviceID();
-    }
-    else
-    {
+    } else {
         useURL = checkURL;
     }
 
@@ -400,69 +541,74 @@ bool esp32FOTA::execHTTPcheck()
 
     if( useURL.substring( 0, 5 ) == "https" ) {
         if (!_allow_insecure_https) {
-            // If the checkURL is https load the root-CA and connect with that
-            log_i( "Loading root_ca.pem" );
-            File root_ca_file = SPIFFS.open( "/root_ca.pem" );
-            if( !root_ca_file ) {
-                log_e( "Could not open root_ca.pem" );
+            if( !RootCA || RootCA->size() == 0 ) {
+                log_e("A strict security context has been set but no RootCA was provided");
                 return false;
             }
-            {
-                std::string root_ca = "";
-                while( root_ca_file.available() ){
-                    root_ca.push_back( root_ca_file.read() );
-                }
-                root_ca_file.close();
-                http.begin( useURL, root_ca.c_str() );
+            rootcastr = RootCA->get();
+            if( !rootcastr ) {
+                log_e("Unable to get RootCA, aborting");
+                return false;
             }
+            log_i( "Loading root_ca.pem" );
+            client.setCACert( rootcastr );
         } else {
             // We're downloading from a secure port, but we don't want to validate the root cert.
             client.setInsecure();
-            http.begin(client, useURL);
         }
+        http.begin(client, useURL);
     } else {
         http.begin(useURL);         //Specify the URL
     }
+
+    if( extraHTTPHeaders.size() > 0 ) {
+      // add custom headers provided by user e.g. http.addHeader("Authorization", "Basic " + auth)
+      for( const auto &header : extraHTTPHeaders ) {
+        http.addHeader(header.first, header.second);
+      }
+    }
+
     int httpCode = http.GET();  //Make the request
 
-    if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {  //Check is a file was returned
-
-        String payload = http.getString();
-
-        int str_len = payload.length() + 1;
-        char JSONMessage[str_len];
-        payload.toCharArray(JSONMessage, str_len);
-
-        DynamicJsonDocument JSONResult(2048);
-        DeserializationError err = deserializeJson(JSONResult, JSONMessage);
-
-        http.end();  // We're done with HTTP - free the resources
-
-        if (err) {  //Check for errors in parsing
-            log_e("Parsing failed");
-            return false;
-        }
-
-        if (JSONResult.is<JsonArray>()) {
-            // We already received an array of multiple firmware types
-            JsonArray arr = JSONResult.as<JsonArray>();
-            for (JsonVariant JSONDocument : arr) {
-                if(checkJSONManifest(JSONDocument)) {
-                    return true;
-                }
-            }
-        } else if (JSONResult.is<JsonObject>()) {
-            if(checkJSONManifest(JSONResult.as<JsonVariant>()))
-                return true;
-        }
-
-        return false; // We didn't get a hit against the above, return false
-    } else {
-        log_e("Error on HTTP request");
+    // only handle 200/301, fail on everything else
+    if( httpCode != HTTP_CODE_OK && httpCode != HTTP_CODE_MOVED_PERMANENTLY ) {
+        log_e("Error on HTTP request (httpCode=%i)", httpCode);
         http.end();
         return false;
     }
+
+    String payload = http.getString();
+
+    // TODO: use payload.length() to speculate on JSONResult buffer size
+    #define JSON_FW_BUFF_SIZE 2048
+    DynamicJsonDocument JSONResult( JSON_FW_BUFF_SIZE );
+
+    DeserializationError err = deserializeJson( JSONResult, payload.c_str() );
+
+    http.end();  // We're done with HTTP - free the resources
+
+    if (err) {  // Check for errors in parsing, or JSON length may exceed buffer size
+        log_e("JSON Parsing failed (err #%d, in=%d bytes, buff=%d bytes):\n%s\n", err, payload.length(), JSON_FW_BUFF_SIZE, payload.c_str() );
+        return false;
+    }
+
+    if (JSONResult.is<JsonArray>()) {
+        // Although improbable given the size on JSONResult buffer, we already received an array of multiple firmware types
+        JsonArray arr = JSONResult.as<JsonArray>();
+        for (JsonVariant JSONDocument : arr) {
+            if(checkJSONManifest(JSONDocument)) {
+                // TODO: filter "highest vs next" version number for JSON with only one firmware type but several version numbers
+                return true;
+            }
+        }
+    } else if (JSONResult.is<JsonObject>()) {
+        if(checkJSONManifest(JSONResult.as<JsonVariant>()))
+            return true;
+    }
+
+    return false; // We didn't get a hit against the above, return false
 }
+
 
 String esp32FOTA::getDeviceID()
 {
@@ -474,34 +620,38 @@ String esp32FOTA::getDeviceID()
     return thisID;
 }
 
+
 // Force a firmware update regardless on current version
-void esp32FOTA::forceUpdate(String firmwareURL, boolean validate )
+void esp32FOTA::forceUpdate(String firmwareURL, bool validate )
 {
     _firmwareUrl = firmwareURL;
-    _check_sig = validate;
+    _check_sig   = validate;
     execOTA();
 }
 
-void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, boolean validate )
+
+void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, bool validate )
 {
     String firmwareURL;
 
-    if( firmwarePort == 443 || firmwarePort == 4433 )
+    if( firmwarePort == 443 || firmwarePort == 4433 ) {
         firmwareURL = String( "https://");
-    else
+    } else {
         firmwareURL = String( "http://" );
+    }
     firmwareURL += firmwareHost + ":" + String( firmwarePort ) + firmwarePath;
 
     forceUpdate(firmwareURL, validate);
 }
 
-void esp32FOTA::forceUpdate(boolean validate )
+
+void esp32FOTA::forceUpdate(bool validate )
 {
     // Forces an update from a manifest, ignoring the version check
     if(!execHTTPcheck()) {
         if (!_firmwareUrl) {
             // execHTTPcheck returns false if either the manifest is malformed or if the version isn't
-            // an upgrade. If _firmwareUrl isn't set, however, we can't force an upgrade. 
+            // an upgrade. If _firmwareUrl isn't set, however, we can't force an upgrade.
             log_e("forceUpdate called, but unable to get _firmwareUrl from manifest via execHTTPcheck.");
             return;
         }
@@ -519,6 +669,16 @@ int esp32FOTA::getPayloadVersion(){
     return _payloadVersion.major;
 }
 
+
 void esp32FOTA::getPayloadVersion(char * version_string){
     semver_render(&_payloadVersion, version_string);
 }
+
+
+void esp32FOTA::debugSemVer( const char* label, semver_t* version ) {
+   char version_no[256] = {'\0'};
+   semver_render(version, version_no);
+   log_i("%s: %s", label, version_no );
+}
+
+#pragma GCC diagnostic pop
