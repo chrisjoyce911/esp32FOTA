@@ -166,7 +166,7 @@ public:
   void getPayloadVersion(char * version_string);
 
   void setManifestURL( String manifest_url ) { _cfg.manifest_url = manifest_url.c_str(); }
-  void useDeviceId( bool use=true ) { _cft.use_device_id = use; }
+  void useDeviceId( bool use=true ) { _cfg.use_device_id = use; }
   bool validate_sig( const esp_partition_t* partition, unsigned char *signature, uint32_t firmware_size );
 
   // this is passed to Update.onProgress()
