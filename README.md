@@ -32,7 +32,7 @@ There are a few things that need to be in place for an update to work.
 - Firmware bin
 - For https or signature check: SPIFFS with root_ca.pem (https) and rsa_key.pem (signature check)
 
-You can supply http or https URLs to the checkURL. If you are using https, you need the root_ca.pem in your SPIFFS partition. For the actual firmware it will use https when you define port 443 or 4433. Otherwise it will use plain http.
+You can supply http or https URLs. If you are using https, you need the root_ca.pem in your SPIFFS partition. For the actual firmware it will use https when you define port 443 or 4433. Otherwise it will use plain http.
 
 ## Usage
 
@@ -137,7 +137,7 @@ Messages depends of build level. If you pass -D CORE_DEBUG_LEVEL=3 to build flag
 
 ### Sketch
 
-In this example a version 1  of 'esp32-fota-http' is in use, it would be updated when using the JSON example.
+In this early init example, a version 1  of 'esp32-fota-http' is in use, it would be updated when using the JSON example.
 
 ```cpp
 #include <esp32FOTA.hpp>
@@ -277,7 +277,7 @@ Then later in the `setup()`:
 void setup()
 {
   // (...)
-  esp32FOTA.checkURL = "http://server/fota/fota.json";
+  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
   esp32FOTA.setRootCA( MyRootCA );
   esp32FOTA.setPubKey( MyPubKey );
 }
@@ -323,63 +323,63 @@ void setup()
 
 ## Update begin-fail callback
 
-    Description: fired when Update.begin() failed
-    Callback type: `void(int partition)`
-    Callback setter: `setUpdateBeginFailCb( cb )`
-    Usage:
+- Description: fired when Update.begin() failed
+- Callback type: `void(int partition)`
+- Callback setter: `setUpdateBeginFailCb( cb )`
+- Usage:
 
 ```cpp
-  esp32FOTA.setUpdateBeginFailCb( [](int partition) {
-      Serial.printf("Update could not begin with %s partition\n", partition==U_SPIFFS ? "spiffs" : "firmware" );
-  });
+esp32FOTA.setUpdateBeginFailCb( [](int partition) {
+  Serial.printf("Update could not begin with %s partition\n", partition==U_SPIFFS ? "spiffs" : "firmware" );
+});
 ```
 
 ## Update end callback
 
-    Description: fired after Update.end() and before signature check
-    Callback type: `void(int partition)`
-    Callback setter: `setUpdateEndCb( cb )`
-    Usage:
+- Description: fired after Update.end() and before signature check
+- Callback type: `void(int partition)`
+- Callback setter: `setUpdateEndCb( cb )`
+- Usage:
 
 ```cpp
-  esp32FOTA.setUpdateEndCb( [](int partition) {
-      Serial.printf("Update could not finish with %s partition\n", partition==U_SPIFFS ? "spiffs" : "firmware" );
-  });
+esp32FOTA.setUpdateEndCb( [](int partition) {
+  Serial.printf("Update could not finish with %s partition\n", partition==U_SPIFFS ? "spiffs" : "firmware" );
+});
 ```
 
 
 ## Update check-fail callback
 
-    Description: fired when partition or signature check failed
-    Callback type: `void(int partition, int update_error_code)`
-    Callback setter: `setUpdateCheckFailCb( cb )`
-    Usage:
+- Description: fired when partition or signature check failed
+- Callback type: `void(int partition, int update_error_code)`
+- Callback setter: `setUpdateCheckFailCb( cb )`
+- Usage:
 
 ```cpp
-  esp32FOTA.setUpdateCheckFailCb( [](int partition, int error code) {
-      Serial.printf("Update could validate %s partition (error %d)\n", partition==U_SPIFFS ? "spiffs" : "firmware", error_code );
-      // error codes:
-      //  -1 : partition not found
-      //  -2 : validation (signature check) failed
-  });
+esp32FOTA.setUpdateCheckFailCb( [](int partition, int error code) {
+  Serial.printf("Update could validate %s partition (error %d)\n", partition==U_SPIFFS ? "spiffs" : "firmware", error_code );
+  // error codes:
+  //  -1 : partition not found
+  //  -2 : validation (signature check) failed
+});
 ```
 
 
 ## Update finished callback
 
-    Description: fired update is complete
-    Callback type: `void(int partition, bool needs_restart)`
-    Callback setter: `setUpdateFinishedCb( cb )`
-    Usage:
+- Description: fired update is complete
+- Callback type: `void(int partition, bool needs_restart)`
+- Callback setter: `setUpdateFinishedCb( cb )`
+- Usage:
 
 ```cpp
-  esp32FOTA.setUpdateFinishedCb( [](int partition, bool restart_after) {
-      Serial.printf("Update could not begin with %s partition\n", partition==U_SPIFFS ? "spiffs" : "firmware" );
-      // do some stuff e.g. notify a MQTT server the update completed successfully
-      if( restart_after ) {
-         ESP.restart();
-      }
-  });
+esp32FOTA.setUpdateFinishedCb( [](int partition, bool restart_after) {
+  Serial.printf("Update could not begin with %s partition\n", partition==U_SPIFFS ? "spiffs" : "firmware" );
+  // do some stuff e.g. notify a MQTT server the update completed successfully
+  if( restart_after ) {
+      ESP.restart();
+  }
+});
 ```
 
 
