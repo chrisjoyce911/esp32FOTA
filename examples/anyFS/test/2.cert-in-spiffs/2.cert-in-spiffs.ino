@@ -15,7 +15,7 @@ int firmware_version_minor  = 0;
 int firmware_version_patch  = 0;
 
 #if !defined FOTA_URL
-  #define FOTA_URL "http://phpsecu.re/esp32/esp32fota/firmware.json"
+  #define FOTA_URL "http://server/fota/fota.json"
 #endif
 const char* firmware_name   = "esp32-fota-http";
 const bool check_signature  = false;

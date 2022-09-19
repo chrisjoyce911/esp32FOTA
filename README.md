@@ -140,8 +140,7 @@ Messages depends of build level. If you pass -D CORE_DEBUG_LEVEL=3 to build flag
 In this example a version 1  of 'esp32-fota-http' is in use, it would be updated when using the JSON example.
 
 ```cpp
-#include <esp32fota.h>
-#include <WiFi.h>
+#include <esp32FOTA.hpp>
 
 const char *ssid = "";
 const char *password = "";
@@ -150,9 +149,10 @@ esp32FOTA esp32FOTA("esp32-fota-http", "1.0.0");
 
 void setup()
 {
-  esp32FOTA.checkURL = "http://server/fota/fota.json";
   Serial.begin(115200);
   setup_wifi();
+  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
+  // esp32FOTA.useDeviceId( true ); // optionally append the device ID to the HTTP query
 }
 
 void setup_wifi()
@@ -160,8 +160,7 @@ void setup_wifi()
   delay(10);
   Serial.print("Connecting to ");
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
@@ -170,12 +169,53 @@ void setup_wifi()
 void loop()
 {
   bool updatedNeeded = esp32FOTA.execHTTPcheck();
-  if (updatedNeeded)
-  {
+  if (updatedNeeded) {
     esp32FOTA.execOTA();
   }
   delay(2000);
 }
+```
+
+
+Late init is possible using `FOTAConfig_t`, allowing more complex configurations:
+
+```cpp
+#include <esp32FOTA.hpp>
+#include <SPIFFS.h>
+
+esp32FOTA FOTA;
+
+// CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &SPIFFS );
+// CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &SD );
+
+void setup()
+{
+  Serial.begin( 115200 );
+  setup_wifi();
+
+  {
+    auto cfg = FOTA.getConfig();
+    cfg.name          = "esp32-fota-http";
+    cfg.manifest_url  = "http://server/fota/fota.json";
+    cfg.sem           = SemverClass( 1, 0, 0 ); // major, minor, patch
+    cfg.check_sig     = false; // verify signed firmware with rsa public key
+    cfg.unsafe        = true; // disable certificate check when using TLS
+    //cfg.root_ca       = MyRootCA;
+    //cfg.pub_key       = MyRSAKey;
+    //cfg.use_device_id = false;
+    FOTA.setConfig( cfg );
+  }
+}
+
+void loop()
+{
+  bool updatedNeeded = esp32FOTA.execHTTPcheck();
+  if (updatedNeeded) {
+    esp32FOTA.execOTA();
+  }
+  delay(2000);
+}
+
 ```
 
 
@@ -245,7 +285,10 @@ void setup()
 ```
 
 
-# Update progress
+# Update callbacks
+
+
+## Progress callback
 
 Can be used to draw a progress bar e.g. on a TFT.
 
@@ -276,6 +319,71 @@ void setup()
   });
 }
 ```
+
+
+## Update begin-fail callback
+
+    Description: fired when Update.begin() failed
+    Callback type: `void(int partition)`
+    Callback setter: `setUpdateBeginFailCb( cb )`
+    Usage:
+
+```cpp
+  esp32FOTA.setUpdateBeginFailCb( [](int partition) {
+      Serial.printf("Update could not begin with %s partition\n", partition==U_SPIFFS ? "spiffs" : "firmware" );
+  });
+```
+
+## Update end callback
+
+    Description: fired after Update.end() and before signature check
+    Callback type: `void(int partition)`
+    Callback setter: `setUpdateEndCb( cb )`
+    Usage:
+
+```cpp
+  esp32FOTA.setUpdateEndCb( [](int partition) {
+      Serial.printf("Update could not finish with %s partition\n", partition==U_SPIFFS ? "spiffs" : "firmware" );
+  });
+```
+
+
+## Update check-fail callback
+
+    Description: fired when partition or signature check failed
+    Callback type: `void(int partition, int update_error_code)`
+    Callback setter: `setUpdateCheckFailCb( cb )`
+    Usage:
+
+```cpp
+  esp32FOTA.setUpdateCheckFailCb( [](int partition, int error code) {
+      Serial.printf("Update could validate %s partition (error %d)\n", partition==U_SPIFFS ? "spiffs" : "firmware", error_code );
+      // error codes:
+      //  -1 : partition not found
+      //  -2 : validation (signature check) failed
+  });
+```
+
+
+## Update finished callback
+
+    Description: fired update is complete
+    Callback type: `void(int partition, bool needs_restart)`
+    Callback setter: `setUpdateFinishedCb( cb )`
+    Usage:
+
+```cpp
+  esp32FOTA.setUpdateFinishedCb( [](int partition, bool restart_after) {
+      Serial.printf("Update could not begin with %s partition\n", partition==U_SPIFFS ? "spiffs" : "firmware" );
+      // do some stuff e.g. notify a MQTT server the update completed successfully
+      if( restart_after ) {
+         ESP.restart();
+      }
+  });
+```
+
+
+
 
 
 
