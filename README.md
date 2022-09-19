@@ -225,7 +225,10 @@ CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 -----END CERTIFICATE-----
 )ROOT_CA";
 
-CryptoMemAsset *MyRootCA = new CryptoMemAsset("Root CA", root_ca, strlen(root_ca)+1 );
+// mixed sources is possible
+CryptoMemAsset  *MyRootCA = new CryptoMemAsset("Root CA", root_ca, strlen(root_ca)+1 );
+CryptoFileAsset *MyPubKey = new CryptoFileAsset("RSA Key", "/rsa_key.pub", &SD);
+
 ```
 
 Then later in the `setup()`:
@@ -233,11 +236,47 @@ Then later in the `setup()`:
 ```C++
 void setup()
 {
+  // (...)
   esp32FOTA.checkURL = "http://server/fota/fota.json";
   esp32FOTA.setRootCA( MyRootCA );
+  esp32FOTA.setPubKey( MyPubKey );
 }
 
 ```
+
+
+# Update progress
+
+Can be used to draw a progress bar e.g. on a TFT.
+
+The callback signature is: `void my_progress_callback( size_t progress, size_t size);`, lambda functions are accepted.
+
+Use `esp32FOTA.setProgressCb( my_progress_callback )` to attach the callback.
+
+This method is aliased to Update.h `onProgress()` feature and defaults to printing dots in the serial console.
+
+```C++
+void my_progress_callback( size_t progress, size_t size )
+{
+  if( progress == size || progress == 0 ) Serial.println();
+  Serial.print(".");
+}
+
+void setup()
+{
+  // (...)
+
+  // usage with callback function:
+  esp32FOTA.setProgressCb( my_progress_callback ) ;
+
+  // usage with lambda function:
+  esp32FOTA.setProgressCb( [](size_t progress, size_t size) {
+      if( progress == size || progress == 0 ) Serial.println();
+      Serial.print(".");
+  });
+}
+```
+
 
 
 ### Verified images via signature
@@ -291,7 +330,7 @@ This relies on [semver.c by h2non](https://github.com/h2non/semver.c) for semant
 
 * @nuclearcat
 * @thinksilicon
-* @nuclearcat
+* @tuan-karma
 * @hpsaturn
 * @tobozo
 

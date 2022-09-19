@@ -1,16 +1,19 @@
 /**
    esp32 firmware OTA
 
-   Purpose: Perform an OTA update firmware from a bin located on a webserver (HTTPS)
-            while using filesystem to check for certificate validity
+   Purpose: Perform an OTA update to both firmware and filesystem from binaries located
+            on a webserver (HTTPS) while using progmem to check for certificate validity
+
 
 */
 
-#include <LittleFS.h> // include filesystem **before** esp32fota !!
 #include <esp32fota.h>
 
+#include "root_ca.h"
+#include "pub_key.h"
+
 // esp32fota settings
-int firmware_version_major  = 4;
+int firmware_version_major  = 5;
 int firmware_version_minor  = 0;
 int firmware_version_patch  = 0;
 
@@ -21,7 +24,7 @@ const char* firmware_name   = "esp32-fota-http";
 const bool check_signature  = true;
 const bool disable_security = false;
 // for debug only
-const char* description     = "LittleFS example with enforced security";
+const char* description     = "PROGMEM example with enforced security";
 
 const char* fota_debug_fmt = R"DBG_FMT(
 
@@ -40,23 +43,21 @@ const char* fota_debug_fmt = R"DBG_FMT(
 // esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>, <allow insecure TLS>);
 //esp32FOTA esp32FOTA( String(firmware_name), firmware_version, check_signature, disable_security );
 
-// for manual configuration
 esp32FOTA FOTA;
 
-CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &LittleFS );
+// CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &LittleFS );
 // CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &SPIFFS );
-// CryptoMemAsset *MyRootCA = new CryptoMemAsset("Certificates Chain", root_ca, strlen(root_ca)+1 );
+CryptoMemAsset *MyRootCA = new CryptoMemAsset("Certificates Chain", root_ca, strlen(root_ca)+1 );
 
 // CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &SPIFFS );
-CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &LittleFS );
-// CryptoMemAsset *MyRSAKey = new CryptoMemAsset("RSA Public Key", pub_key, strlen(pub_key)+1 );
+// CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &LittleFS );
+CryptoMemAsset *MyRSAKey = new CryptoMemAsset("RSA Public Key", pub_key, strlen(pub_key)+1 );
 
 
 void setup_wifi()
 {
   delay(10);
-
-  Serial.print("MAC Address ");
+  Serial.print("Connecting to WiFi ");
   Serial.println( WiFi.macAddress() );
 
   WiFi.begin(); // no WiFi creds in this demo :-)
@@ -76,11 +77,6 @@ void setup()
 {
   Serial.begin(115200);
   Serial.printf( fota_debug_fmt, firmware_version_major, description, firmware_name, firmware_version_major, check_signature?"Enabled":"Disabled", disable_security?"Disabled":"Enabled" );
-  // Provide filesystem with root_ca.pem to validate server certificate
-  if( ! LittleFS.begin( false ) ) {
-    Serial.println("LittleFS Mounting failed, aborting!");
-    while(1) vTaskDelay(1);
-  }
 
   {
     auto cfg = FOTA.getConfig();
@@ -95,7 +91,6 @@ void setup()
   }
 
   setup_wifi();
-
 }
 
 void loop()
@@ -107,6 +102,5 @@ void loop()
 
   delay(20000);
 }
-
 
 

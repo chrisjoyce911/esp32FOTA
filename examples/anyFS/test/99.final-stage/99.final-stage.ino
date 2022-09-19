@@ -1,3 +1,5 @@
+// Just a dummy script prevent an endless OTA loop to occur
+// It validates the last step in the test suite by printing a message in the serial.
 
 
 void setup()

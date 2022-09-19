@@ -12,11 +12,12 @@
 #include "root_ca.h"
 
 // esp32fota settings
-const int firmware_version  = 3;
-#if defined FOTA_URL
-  const char* fota_url        = FOTA_URL;
-#else
-  const char* fota_url        = "https://github.com/chrisjoyce911/esp32FOTA/raw/tests/examples/anyFS/test/stage1/firmware.json";
+int firmware_version_major  = 3;
+int firmware_version_minor  = 0;
+int firmware_version_patch  = 0;
+
+#if !defined FOTA_URL
+  #define FOTA_URL "http://server/fota/fota.json"
 #endif
 const char* firmware_name   = "esp32-fota-http";
 const bool check_signature  = false;
@@ -39,17 +40,25 @@ const char* fota_debug_fmt = R"DBG_FMT(
 )DBG_FMT";
 
 // esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>, <allow insecure TLS>);
-esp32FOTA esp32FOTA( String(firmware_name), firmware_version, check_signature, disable_security );
+// esp32FOTA esp32FOTA( String(firmware_name), firmware_version, check_signature, disable_security );
 
-// create an abstraction of the root_ca file
-CryptoMemAsset *GithubRootCA = new CryptoMemAsset("Root CA", /*github_*/root_ca, strlen(/*github_*/root_ca)+1 );
+// for manual configuration
+esp32FOTA FOTA;
+
+// CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &LittleFS );
+// CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &SPIFFS );
+CryptoMemAsset *MyRootCA = new CryptoMemAsset("Certificates Chain", root_ca, strlen(root_ca)+1 );
+
+// CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &SPIFFS );
+// CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &LittleFS );
+// CryptoMemAsset *MyRSAKey = new CryptoMemAsset("RSA Public Key", pub_key, strlen(pub_key)+1 );
+
 
 void setup_wifi()
 {
   delay(10);
   Serial.print("Connecting to WiFi ");
   Serial.println( WiFi.macAddress() );
-  //Serial.println(ssid);
 
   WiFi.begin(); // no WiFi creds in this demo :-)
 
@@ -62,28 +71,35 @@ void setup_wifi()
   Serial.println("");
   Serial.println(WiFi.localIP());
 
-  esp32FOTA.setRootCA( GithubRootCA );
-
+  FOTA.setRootCA( MyRootCA );
 }
 
 
 void setup()
 {
   Serial.begin(115200);
-  Serial.printf( fota_debug_fmt, firmware_version, description, firmware_name, firmware_version, check_signature?"Enabled":"Disabled", disable_security?"Disabled":"Enabled" );
+  Serial.printf( fota_debug_fmt, firmware_version_major, description, firmware_name, firmware_version_major, check_signature?"Enabled":"Disabled", disable_security?"Disabled":"Enabled" );
 
-  esp32FOTA.checkURL = fota_url;
+  {
+    auto cfg = FOTA.getConfig();
+    cfg.name         = firmware_name;
+    cfg.manifest_url = FOTA_URL;
+    cfg.sem          = SemverClass( firmware_version_major, firmware_version_minor, firmware_version_patch );
+    cfg.check_sig    = check_signature;
+    cfg.unsafe       = disable_security;
+    cfg.root_ca      = MyRootCA;
+    //cfg.pub_key      = MyRSAKey;
+    FOTA.setConfig( cfg );
+  }
 
   setup_wifi();
 }
 
 void loop()
 {
-
-  bool updatedNeeded = esp32FOTA.execHTTPcheck();
-  if (updatedNeeded)
-  {
-    esp32FOTA.execOTA();
+  bool updatedNeeded = FOTA.execHTTPcheck();
+  if (updatedNeeded) {
+    FOTA.execOTA();
   }
 
   delay(20000);
