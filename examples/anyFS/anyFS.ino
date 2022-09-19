@@ -77,7 +77,7 @@ void setup()
 
     cfg.name         = firmware_name;
     cfg.manifest_url = FOTA_URL;
-    cfg.version      = semver_t{ firmware_version };
+    cfg.sem          = SemverClass( firmware_version );
     cfg.check_sig    = check_signature;
     cfg.unsafe       = disable_security;
     cfg.root_ca      = MyRootCA;
