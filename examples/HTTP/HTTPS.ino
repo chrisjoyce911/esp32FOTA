@@ -1,13 +1,13 @@
 /**
    esp32 firmware OTA
-   
+
    Purpose: Perform an OTA update from a bin located on a webserver (HTTPS)
 
    Setup:
    Step 1 : Set your WiFi (ssid & password)
    Step 2 : set esp32fota()
    Step 3 : Provide SPIFFS filesystem with root_ca.pem of your webserver
-   
+
    Upload:
    Step 1 : Menu > Sketch > Export Compiled Library. The bin file will be saved in the sketch folder (Menu > Sketch > Show Sketch folder)
    Step 2 : Upload it to your webserver
@@ -53,8 +53,8 @@ void setup()
 {
   // Provide spiffs with root_ca.pem to validate server certificate
   SPIFFS.begin(true);
-  
-  esp32FOTA.checkURL = "https://server/fota/fota.json";
+
+  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
   Serial.begin(115200);
   setup_wifi();
 }

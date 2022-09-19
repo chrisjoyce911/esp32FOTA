@@ -6,7 +6,7 @@
    Setup:
    Step 1 : Set your WiFi (ssid & password)
    Step 2 : set esp32fota()
-   
+
    Upload:
    Step 1 : Menu > Sketch > Export Compiled Library. The bin file will be saved in the sketch folder (Menu > Sketch > Show Sketch folder)
    Step 2 : Upload it to your webserver
@@ -26,9 +26,11 @@ esp32FOTA FOTA("esp32-fota-http", 1, false);
 
 void setup()
 {
-  FOTA.checkURL = "http://server/fota/fota.json";
   Serial.begin(115200);
   setup_wifi();
+
+  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
+  esp32FOTA.useDeviceId( true );
 }
 
 void setup_wifi()
@@ -51,8 +53,6 @@ void setup_wifi()
 
 void loop()
 {
-
-  FOTA.useDeviceID = true;
   bool updatedNeeded = FOTA.execHTTPcheck();
   if (updatedNeeded)
   {

@@ -26,7 +26,7 @@ esp32FOTA esp32FOTA("esp32-fota-http", 1, false);
 
 void setup()
 {
-  esp32FOTA.checkURL = "http://server/fota/fota.json";
+  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
   Serial.begin(115200);
   setup_wifi();
 }

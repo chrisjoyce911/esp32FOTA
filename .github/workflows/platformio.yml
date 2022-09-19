@@ -2,15 +2,23 @@ name: PlatformIO
 
 on:
   push:
-    branches:
-      - master
+    paths:
+    - '**.ino'
+    - '**.ini'
+    - '**.cpp'
+    - '**.hpp'
+    - '**.h'
+    - '**.c'
+    - '**platformio.yml'
 
   pull_request:
     branches:
       - master
+
   workflow_dispatch:
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -30,5 +38,20 @@ jobs:
           platformio update
       - name: Build test
         run: |
+          pwd
+          ls
+          mkdir -p tests/test_http
+          mkdir -p tests/test_https
+          cp examples/HTTP/HTTP.ino tests/test_http/main.cpp
+          cp examples/HTTP/HTTPS.ino tests/test_https/main.cpp
           pio run
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: arduino/arduino-lint-action@v1
+        with:
+          project-type: library
+          library-manager: false
+          recursive: true
