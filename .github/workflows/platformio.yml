@@ -44,7 +44,8 @@ jobs:
           mkdir -p tests/test_https
           cp examples/HTTP/HTTP.ino tests/test_http/main.cpp
           cp examples/HTTP/HTTPS.ino tests/test_https/main.cpp
-          # pio lib install --no-save file://$(realpath ./)
+          # globally install the esp32FOTA library from local folder, don't update the platformio.ini
+          pio lib install --no-save file://$(realpath ./)
           pio run
 
   lint:
