@@ -164,7 +164,7 @@ public:
   int getPayloadVersion();
   void getPayloadVersion(char * version_string);
 
-  void setManifestURL( String manifest_url ) { _cfg.manifest_url = manifest_url.c_str(); }
+  void setManifestURL( String manifest_url ) { _manifestUrl = manifest_url; _cfg.manifest_url = _manifestUrl.c_str(); }
   void useDeviceId( bool use=true ) { _cfg.use_device_id = use; }
   bool validate_sig( const esp_partition_t* partition, unsigned char *signature, uint32_t firmware_size );
 
@@ -204,10 +204,15 @@ public:
 
 private:
 
+  HTTPClient _http;
+  WiFiClientSecure _client;
+  bool setupHTTP( String url );
+
   FOTAConfig_t _cfg;
 
   SemverClass _payload_sem = SemverClass(0,0,0);
 
+  String _manifestUrl;
   String _firmwareUrl;
   String _flashFileSystemUrl;
 
