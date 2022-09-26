@@ -30,7 +30,7 @@
 
 */
 
-#include "esp32fota.h"
+#include "esp32FOTA.hpp"
 
 #include "mbedtls/pk.h"
 #include "mbedtls/md.h"
