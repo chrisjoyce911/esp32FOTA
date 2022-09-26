@@ -276,6 +276,54 @@ bool esp32FOTA::validate_sig( const esp_partition_t* partition, unsigned char *s
 }
 
 
+bool esp32FOTA::setupHTTP( String url )
+{
+    const char* rootcastr = nullptr;
+    _http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+    log_i("Connecting to: %s\r\n", url.c_str() );
+    if( url.substring( 0, 5 ) == "https" ) {
+        if (!_cfg.unsafe) {
+            if( !_cfg.root_ca ) {
+                Serial.println("A strict security context has been set but no RootCA was provided");
+                return false;
+            }
+            rootcastr = _cfg.root_ca->get();
+            if( _cfg.root_ca->size() == 0 ) {
+                Serial.println("A strict security context has been set but an empty RootCA was provided");
+                Serial.println(rootcastr);
+                return false;
+            }
+            if( !rootcastr ) {
+                Serial.println("Unable to get RootCA, aborting");
+                return false;
+            }
+            Serial.println("Loading root_ca.pem");
+            _client.setCACert( rootcastr );
+        } else {
+            // We're downloading from a secure URL, but we don't want to validate the root cert.
+            _client.setInsecure();
+        }
+        _http.begin( _client, url );
+    } else {
+        _http.begin( url );
+    }
+
+    if( extraHTTPHeaders.size() > 0 ) {
+        // add custom headers provided by user e.g. _http.addHeader("Authorization", "Basic " + auth)
+        for( const auto &header : extraHTTPHeaders ) {
+            _http.addHeader(header.first, header.second);
+        }
+    }
+
+    // TODO: add more watched headers e.g. Authorization: Signature keyId="rsa-key-1",algorithm="rsa-sha256",signature="Base64(RSA-SHA256(signing string))"
+    const char* get_headers[] = { "Content-Length", "Content-type" };
+    _http.collectHeaders( get_headers, 2 );
+
+    return true;
+}
+
+
 // OTA Logic
 bool esp32FOTA::execOTA()
 {
@@ -319,57 +367,23 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
 
     size_t contentLength = 0;
     bool isValidContentType = false;
-    const char* rootcastr = nullptr;
 
-    HTTPClient http;
-    WiFiClientSecure client;
-    //http.setConnectTimeout( 1000 );
-    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-
-    log_i("Connecting to: %s\r\n", UpdateURL.c_str() );
-    if( UpdateURL.substring( 0, 5 ) == "https" ) {
-        if (!_cfg.unsafe) {
-            if( !_cfg.root_ca ) {
-                Serial.println("A strict security context has been set for "+PartitionLabel+" partition but no RootCA was provided");
-                return false;
-            }
-            rootcastr = _cfg.root_ca->get();
-            if( _cfg.root_ca->size() == 0 ) {
-                Serial.println("A strict security context has been set for "+PartitionLabel+" partition but an empty RootCA was provided");
-                Serial.println(rootcastr);
-                return false;
-            }
-            if( !rootcastr ) {
-                Serial.println("Unable to get RootCA for "+PartitionLabel+", aborting");
-                return false;
-            }
-            Serial.println("Loading root_ca.pem");
-            client.setCACert( rootcastr );
-        } else {
-            // We're downloading from a secure URL, but we don't want to validate the root cert.
-            client.setInsecure();
-        }
-        http.begin( client, UpdateURL );
-    } else {
-        http.begin( UpdateURL );
+    if(! setupHTTP( UpdateURL ) ) {
+      log_e("unable to setup http, aborting!");
+      return false;
     }
 
-    if( extraHTTPHeaders.size() > 0 ) {
-        // add custom headers provided by user e.g. http.addHeader("Authorization", "Basic " + auth)
-        for( const auto &header : extraHTTPHeaders ) {
-            http.addHeader(header.first, header.second);
-        }
-    }
+    // Stream& stream;
+    // if( ! getHTTPPayload( &stream ) ) {
+    //   log_e("HTTP Error");
+    //   return false;
+    // }
 
-    // TODO: add more watched headers e.g. Authorization: Signature keyId="rsa-key-1",algorithm="rsa-sha256",signature="Base64(RSA-SHA256(signing string))"
-    const char* get_headers[] = { "Content-Length", "Content-type" };
-    http.collectHeaders( get_headers, 2 );
-
-    int httpCode = http.GET();
+    int httpCode = _http.GET();
 
     if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
-        contentLength = http.header( "Content-Length" ).toInt();
-        String contentType = http.header( "Content-type" );
+        contentLength = _http.header( "Content-Length" ).toInt();
+        String contentType = _http.header( "Content-type" );
         if( contentType == "application/octet-stream" ) {
             isValidContentType = true;
         } else if( contentType == "application/gzip" ) {
@@ -405,7 +419,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
             break;
         }
 
-        http.end();
+        _http.end();
         return false;
     }
 
@@ -415,7 +429,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
     // check contentLength and content type
     if( !contentLength || !isValidContentType ) {
         Serial.printf("There was no content in the http response: (length: %i, valid: %s)\n", contentLength, isValidContentType?"true":"false");
-        http.end();
+        _http.end();
         return false;
     }
 
@@ -430,7 +444,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
 
     if( !canBegin ) {
         Serial.println("Not enough space to begin OTA, partition size mismatch?");
-        http.end();
+        _http.end();
         if( onUpdateBeginFail ) onUpdateBeginFail( partition );
         return false;
     }
@@ -444,7 +458,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         });
     }
 
-    Stream& stream = http.getStream();
+    Stream& stream = _http.getStream();
 
     unsigned char signature[512];
     if( _cfg.check_sig ) {
@@ -483,7 +497,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         return false;
     }
 
-    http.end();
+    _http.end();
 
     if( onUpdateEnd ) onUpdateEnd( partition );
 
@@ -671,8 +685,6 @@ bool esp32FOTA::execHTTPcheck()
         useURL = checkURL;
     }
 
-    const char* rootcastr = nullptr;
-
     // being deprecated, soon unsupported!
     if( useDeviceID ) {
         Serial.println("useDeviceID will soon be unsupported, use FOTAConfig_t::use_device_id instead!!");
@@ -693,45 +705,19 @@ bool esp32FOTA::execHTTPcheck()
     log_i("Getting HTTP: %s", useURL.c_str());
     log_i("------");
 
-    HTTPClient http;
-    WiFiClientSecure client;
-    http.setFollowRedirects( HTTPC_STRICT_FOLLOW_REDIRECTS );
-
-    if( useURL.substring( 0, 5 ) == "https" ) {
-        if( _cfg.unsafe ) {
-            // We're downloading from a secure port, but we don't want to validate the root cert.
-            client.setInsecure();
-        } else {
-            // We're downloading from a secure port, and want to validate the root cert.
-            if( !_cfg.root_ca ) {
-                Serial.println("A strict security context has been set to fetch json manifest, but no RootCA was provided, aborting");
-                return false;
-            }
-            rootcastr = _cfg.root_ca->get();
-            if( _cfg.root_ca->size() == 0 ) {
-                Serial.println("A strict security context has been set to fetch json manifest, but an empty RootCA was provided, aborting");
-                return false;
-            }
-            if( !rootcastr ) {
-                Serial.println("Unable to get RootCA to fetch json manifest, aborting");
-                return false;
-            }
-            Serial.println("Loading root_ca.pem");
-            client.setCACert( rootcastr );
-        }
-        http.begin( client, useURL );
-    } else {
-        http.begin( useURL );
+    if(! setupHTTP( useURL ) ) {
+      log_e("unable to setup http, aborting!");
+      return false;
     }
 
-    if( extraHTTPHeaders.size() > 0 ) {
-        // add custom headers provided by user e.g. http.addHeader("Authorization", "Basic " + auth)
-        for( const auto &header : extraHTTPHeaders ) {
-            http.addHeader(header.first, header.second);
-        }
-    }
 
-    int httpCode = http.GET();  //Make the request
+    // String payload;
+    // if( ! getHTTPPayload( &payload ) ) {
+    //   log_e("HTTP Error");
+    //   return false;
+    // }
+
+    int httpCode = _http.GET();  //Make the request
 
     // only handle 200/301, fail on everything else
     if( httpCode != HTTP_CODE_OK && httpCode != HTTP_CODE_MOVED_PERMANENTLY ) {
@@ -742,19 +728,17 @@ bool esp32FOTA::execHTTPcheck()
         } else {
             log_d("Unknown HTTP response");
         }
-        http.end();
+        _http.end();
         return false;
     }
+
+    String payload = _http.getString();
+    _http.end();  // We're done with HTTP - free the resources
 
     // TODO: use payload.length() to speculate on JSONResult buffer size
     #define JSON_FW_BUFF_SIZE 2048
     DynamicJsonDocument JSONResult( JSON_FW_BUFF_SIZE );
-
-    String payload = http.getString();
-
     DeserializationError err = deserializeJson( JSONResult, payload.c_str() );
-
-    http.end();  // We're done with HTTP - free the resources
 
     if (err) {  // Check for errors in parsing, or JSON length may exceed buffer size
         Serial.printf("JSON Parsing failed (%s, in=%d bytes, buff=%d bytes):\n%s\n", err.c_str(), payload.length(), JSON_FW_BUFF_SIZE, payload.c_str() );
