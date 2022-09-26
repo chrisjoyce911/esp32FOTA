@@ -31,7 +31,6 @@
 
 #pragma once
 
-//#ifndef esp32fota_h
 #define esp32fota_h
 
 extern "C" {
@@ -238,6 +237,3 @@ private:
   const char* root_ca_pem_default_path = "/root_ca.pem";
 
 };
-
-//#endif
-
