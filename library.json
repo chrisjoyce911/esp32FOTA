@@ -21,5 +21,10 @@
   "platforms": [
     "esp32",
     "espressif32"
+  ],
+  "dependencies": [
+    "WiFiClientSecure",
+    "HTTPClient",
+    "ArduinoJson"
   ]
 }
