@@ -148,8 +148,10 @@ public:
 
   esp32FOTA();
   esp32FOTA( FOTAConfig_t cfg );
-  esp32FOTA(String firwmareType, int firwmareVersion,            bool validate = false, bool allow_insecure_https = false );
-  esp32FOTA(String firwmareType, String firmwareSemanticVersion, bool validate = false, bool allow_insecure_https = false );
+  esp32FOTA(const char* firwmareType, int firwmareVersion, bool validate = false, bool allow_insecure_https = false );
+  esp32FOTA(const String &firwmareType, int firwmareVersion, bool validate = false, bool allow_insecure_https = false ) : esp32FOTA(firwmareType.c_str(), firwmareVersion, validate, allow_insecure_https){};
+  esp32FOTA(const char* firwmareType, const char* firmwareSemanticVersion, bool validate = false, bool allow_insecure_https = false );
+  esp32FOTA(const String &firwmareType, const String &firmwareSemanticVersion, bool validate = false, bool allow_insecure_https = false ) : esp32FOTA(firwmareType.c_str(), firmwareSemanticVersion.c_str(), validate, allow_insecure_https){};
   ~esp32FOTA();
 
   template <typename T> void setPubKey( T* asset ) { _cfg.pub_key = (CryptoAsset*)asset; _cfg.check_sig = true; }
@@ -164,7 +166,7 @@ public:
   int getPayloadVersion();
   void getPayloadVersion(char * version_string);
 
-  void setManifestURL( String manifest_url ) { _cfg.manifest_url = manifest_url.c_str(); }
+  void setManifestURL( const String &manifest_url ) { _cfg.manifest_url = manifest_url.c_str(); }
   void useDeviceId( bool use=true ) { _cfg.use_device_id = use; }
   bool validate_sig( const esp_partition_t* partition, unsigned char *signature, uint32_t firmware_size );
 

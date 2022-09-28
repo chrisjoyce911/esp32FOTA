@@ -36,11 +36,13 @@
 #include "mbedtls/md.h"
 #include "mbedtls/md_internal.h"
 #include "esp_ota_ops.h"
+#include "flashz.cpp"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
+#define FW_SIGNATURE_LENGTH     512
 
 SemverClass::SemverClass( const char* version )
 {
@@ -114,9 +116,9 @@ esp32FOTA::esp32FOTA( FOTAConfig_t cfg )
 }
 
 
-esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, bool validate, bool allow_insecure_https)
+esp32FOTA::esp32FOTA(const char* firmwareType, int firmwareVersion, bool validate, bool allow_insecure_https)
 {
-    _cfg.name      = firmwareType.c_str();
+    _cfg.name      = firmwareType;
     _cfg.sem       = SemverClass( firmwareVersion );
     _cfg.check_sig = validate;
     _cfg.unsafe    = allow_insecure_https;
@@ -126,12 +128,12 @@ esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, bool validate, bo
 }
 
 
-esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, bool validate, bool allow_insecure_https)
+esp32FOTA::esp32FOTA(const char* firmwareType, const char* firmwareSemanticVersion, bool validate, bool allow_insecure_https)
 {
-    _cfg.name      = firmwareType.c_str();
+    _cfg.name      = firmwareType;
     _cfg.check_sig = validate;
     _cfg.unsafe    = allow_insecure_https;
-    _cfg.sem       = SemverClass( firmwareSemanticVersion.c_str() );
+    _cfg.sem       = SemverClass( firmwareSemanticVersion );
 
     setupCryptoAssets();
     debugSemVer("Current firmware version", _cfg.sem.ver() );
@@ -297,8 +299,8 @@ bool esp32FOTA::execOTA()
 
 bool esp32FOTA::execOTA( int partition, bool restart_after )
 {
-    String UpdateURL = "";
-    String PartitionLabel = "";
+    String UpdateURL((char *)0);
+    String PartitionLabel((char *)0);
 
     switch( partition ) {
         case U_SPIFFS: // spiffs/littlefs/fatfs partition
@@ -317,7 +319,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         break;
     }
 
-    size_t contentLength = 0;
+    int contentLength = 0;
     bool isValidContentType = false;
     const char* rootcastr = nullptr;
 
@@ -368,7 +370,8 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
     int httpCode = http.GET();
 
     if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
-        contentLength = http.header( "Content-Length" ).toInt();
+        //contentLength = http.header( "Content-Length" ).toInt();
+        contentLength = http.getSize();
         String contentType = http.header( "Content-type" );
         if( contentType == "application/octet-stream" ) {
             isValidContentType = true;
@@ -421,52 +424,77 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
 
     log_d("contentLength : %i, isValidContentType : %s", contentLength, String(isValidContentType));
 
-    if( _cfg.check_sig && contentLength != UPDATE_SIZE_UNKNOWN ) {
-        // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
-        contentLength -= 512;
+    Stream *stream = http.getStreamPtr();
+    if (!stream){
+        http.end();
+        log_d("bad http stream");
+        return false;
     }
+
+    bool mode_z = (stream->peek() == ZLIB_HEADER);                      // check if we get a zlib compressed image
+    size_t fwsize = mode_z ? UPDATE_SIZE_UNKNOWN : contentLength;       // fw_size is unknown if we have a compressed image
+
+    if (_cfg.check_sig && mode_z){
+        http.end();
+        log_d("compressed'n'signed image is not (yet) supported");
+        return false;
+    }
+
+    if( _cfg.check_sig && contentLength > FW_SIGNATURE_LENGTH) {
+        // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
+        fwsize -= 512;
+    }
+
     // Check if there is enough available space on the partition to perform the Update
-    bool canBegin = Update.begin( contentLength, partition );
+    bool canBegin = mode_z ? FlashZ::getInstance().beginz(fwsize, partition) : FlashZ::getInstance().begin(fwsize, partition);
 
     if( !canBegin ) {
         Serial.println("Not enough space to begin OTA, partition size mismatch?");
         http.end();
+        if (mode_z) FlashZ::getInstance().abortz();     // release inflator
         if( onUpdateBeginFail ) onUpdateBeginFail( partition );
         return false;
     }
 
     if( onOTAProgress ) {
-        Update.onProgress( onOTAProgress );
+        FlashZ::getInstance().onProgress( onOTAProgress );
     } else {
-        Update.onProgress( [](size_t progress, size_t size) {
+        FlashZ::getInstance().onProgress( [](size_t progress, size_t size) {
             if( progress >= size ) Serial.println();
             else if( progress > 0) Serial.print(".");
         });
     }
 
-    Stream& stream = http.getStream();
-
+    // todo: this is a waste of stack mem
     unsigned char signature[512];
     if( _cfg.check_sig ) {
-        stream.readBytes( signature, 512 );
+        stream->readBytes( signature, 512 );
     }
     Serial.printf("Begin %s OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!\n", partition==U_FLASH?"Firmware":"Filesystem");
     // Some activity may appear in the Serial monitor during the update (depends on Update.onProgress).
     // This may take 2 - 5mins to complete
-    size_t written = Update.writeStream( stream );
+    size_t written = mode_z ? FlashZ::getInstance().writezStream(*stream, contentLength) : FlashZ::getInstance().writeStream(*stream);
+    http.end();
+    stream = nullptr;
 
-    if ( written == contentLength) {
+    if (fwsize == UPDATE_SIZE_UNKNOWN)      // match compressed fw size to responce length
+        fwsize = contentLength;
+
+    if ( written == fwsize) {
         Serial.println("Written : " + String(written) + " successfully");
-    } else if ( contentLength == UPDATE_SIZE_UNKNOWN ) {
-        Serial.println("Written : " + String(written) + " successfully");
-        contentLength = written; // populate value as it was unknown until now
+//    } else if ( contentLength == UPDATE_SIZE_UNKNOWN ) {      // this is impossible
+//        Serial.println("Written : " + String(written) + " successfully");
+//        contentLength = written; // populate value as it was unknown until now
     } else {
         Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Premature end of stream?");
-        contentLength = written; // flatten value to prevent overflow when checking signature
+        //contentLength = written; // flatten value to prevent overflow when checking signature
+        //fwsize = written;
+        FlashZ::getInstance().abortz();    // this should be an error actually if we wrote less than provided content size
+        return false;
     }
 
-    if (!Update.end()) {
-        Serial.println("An Update Error Occurred. Error #: " + String(Update.getError()));
+    if (!FlashZ::getInstance().endz()) {
+        Serial.println("An Update Error Occurred. Error #: " + String(FlashZ::getInstance().getError()));
         // #define UPDATE_ERROR_OK                 (0)
         // #define UPDATE_ERROR_WRITE              (1)
         // #define UPDATE_ERROR_ERASE              (2)
@@ -482,8 +510,6 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         // #define UPDATE_ERROR_ABORT              (12)
         return false;
     }
-
-    http.end();
 
     if( onUpdateEnd ) onUpdateEnd( partition );
 
@@ -538,7 +564,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         }
     }
     //Serial.println("OTA Update complete!");
-    if (Update.isFinished()) {
+    if (FlashZ::getInstance().isFinished()) {
 
         if( onUpdateFinished ) onUpdateFinished( partition, restart_after );
 
@@ -580,8 +606,8 @@ void esp32FOTA::getPartition( int update_partition )
 bool esp32FOTA::checkJSONManifest(JsonVariant doc)
 {
     if(strcmp(doc["type"].as<const char *>(), _cfg.name) != 0) {
-        log_d("Payload type in manifest %s doesn't match current firmware %s", doc["type"].as<const char *>(), _cfg.name );
-        log_d("Doesn't match type: %s", _cfg.name );
+        log_d("Payload type in manifest '%s' doesn't match current firmware '%s'", doc["type"].as<const char *>(), _cfg.name );
+        log_d("Doesn't match type: '%s'", _cfg.name );
         return false;  // Move to the next entry in the manifest
     }
     log_i("Payload type in manifest %s matches current firmware %s", doc["type"].as<const char *>(), _cfg.name );
