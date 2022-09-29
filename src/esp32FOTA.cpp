@@ -847,7 +847,7 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
             isValidContentType = true;
         } else if( contentType == "application/gzip" ) {
             // was gzipped by the server, needs decompression
-            // TODO: use gzStreamUpdater
+            isValidContentType = F_UseZlib;
         } else if( contentType == "application/tar+gz" || contentType == "application/x-gtar" ) {
             // was packaged and compressed, may contain more than one file
             // TODO: use tarGzStreamUpdater

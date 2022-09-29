@@ -12,11 +12,12 @@
 
 */
 
+#include <flashz.hpp> // optional esp32-flashz for gzipped firmwares
 #include <esp32FOTA.hpp>
 
 // esp32fota settings
 int firmware_version_major  = 1;
-int firmware_version_minor  = 0;
+int firmware_version_minor  = 2;
 int firmware_version_patch  = 0;
 
 #if !defined FOTA_URL
@@ -26,7 +27,7 @@ const char* firmware_name   = "esp32-fota-http";
 const bool check_signature  = false;
 const bool disable_security = true;
 // for debug only
-const char* description     = "Basic example with no security and no filesystem";
+const char* description     = "Basic *gzipped* example with no security and no filesystem";
 
 const char* fota_debug_fmt = R"DBG_FMT(
 
@@ -99,3 +100,4 @@ void loop()
 
   delay(20000);
 }
+

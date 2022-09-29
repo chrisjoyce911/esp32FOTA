@@ -42,42 +42,6 @@ CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &LittleFS );
 esp32FOTA FOTA; // empty constructor
 
 
-// bool available( stream*) // returns stream->available() or (stream->peek() == ZLIB_HEADER)
-// size_t size() // returns size or UPDATE_SIZE_UNKNOWN
-// bool canBegin( fwsize, partition ) // should call Update.begin( fwsize, partition )
-// void onBeginFailCb( partition ) // abort !
-// void onProgressCb( size_t progress, size_t total ) // delegate to Update.onProgress
-// void writeCb( *stream, size ) // FlashZ::getInstance().writezStream(*stream, contentLength), FlashZ::getInstance().writeStream(*stream), Update, Update.writeStream
-
-
-
-int64_t myStreamGetter( esp32FOTA* fota, int partition  )
-{
-  const char* path = fota->getPath( partition );
-  Serial.printf("Opening %s\n", path );
-
-  // retrieve fota stream pointer
-  Stream* fotaStream = fota->getFotaStreamPtr();
-  //auto myStream = FlashZ::getInstance();
-
-  // overwrite pointer with custom stream object
-  //*fotaStream = new blahStream( my args ... );
-
-  int size = fotaStream->available();
-
-  if( size <= 0 ) {
-    fota->setFotaStream( nullptr );
-    return -1;
-  }
-
-  return size;
-}
-// FOTA.setStreamGetter( myStreamGetter );
-
-
-
-
-
 bool WiFiConnected()
 {
     return (WiFi.status() == WL_CONNECTED);
