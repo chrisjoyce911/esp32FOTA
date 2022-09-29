@@ -78,9 +78,9 @@ extern "C" {
   #define F_Update FlashZ::getInstance()
   #define F_hasZlib() true
   #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER)
-  #define F_canBegin() mode_z ? F_Update.beginz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(fwsize, partition)
-  #define F_UpdateEnd() F_Update.endz()
-  #define F_abort() if (mode_z) F_Update.abortz()
+  #define F_canBegin() (mode_z ? F_Update.beginz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(fwsize, partition))
+  #define F_UpdateEnd() (mode_z ? F_Update.endz() : F_Update.end())
+  #define F_abort() if (mode_z) F_Update.abortz(); else F_Update.abort()
   #define F_writeStream() (mode_z ? F_Update.writezStream(*_stream, updateSize) : F_Update.writeStream(*_stream))
 #else
   #include <Update.h>
@@ -89,7 +89,7 @@ extern "C" {
   #define F_isZlibStream() false
   #define F_canBegin() F_Update.begin(fwsize, partition)
   #define F_UpdateEnd() F_Update.end()
-  #define F_abort() { }
+  #define F_abort() F_Update.abort()
   #define F_writeStream() F_Update.writeStream(*_stream);
 #endif
 
