@@ -188,13 +188,6 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
-    - name: Checkout optional dependency
-      uses: actions/checkout@v2
-      with:
-        repository: vortigont/esp32-flashz
-        ref: master
-        path: CustomLibrary_flashZ # must contain string "Custom"
-
     - name: Retrieve RootCA/PubKey
       uses: actions/download-artifact@v3
       with:
@@ -215,6 +208,13 @@ jobs:
         pub_key_c_path=`dirname $full_ino_path`/pub_key.h
         cp ${{env.cert_path}}/root_ca.h $root_ca_c_path
         cp ${{env.cert_path}}/pub_key.h $pub_key_c_path
+
+    - name: Checkout esp32-flashz
+      uses: actions/checkout@v2
+      with:
+        repository: vortigont/esp32-flashz
+        ref: main
+        path: CustomLibrary_flashZ # must contain string "Custom"
 
     - name: Compile ${{ matrix.sketch }}
       uses: ArminJo/arduino-test-compile@v3
