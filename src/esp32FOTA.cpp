@@ -41,6 +41,14 @@
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
+#define FW_SIGNATURE_LENGTH     512
+
+
+static int64_t getHTTPStream( esp32FOTA* fota, int partition );
+static int64_t getFileStream( esp32FOTA* fota, int partition );
+static int64_t getSerialStream( esp32FOTA* fota, int partition );
+static bool WiFiStatusCheck();
+
 
 SemverClass::SemverClass( const char* version )
 {
@@ -106,7 +114,9 @@ size_t CryptoFileAsset::size()
 
 
 
-esp32FOTA::esp32FOTA() { }
+esp32FOTA::esp32FOTA(){}
+esp32FOTA::~esp32FOTA(){}
+
 
 esp32FOTA::esp32FOTA( FOTAConfig_t cfg )
 {
@@ -114,9 +124,9 @@ esp32FOTA::esp32FOTA( FOTAConfig_t cfg )
 }
 
 
-esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, bool validate, bool allow_insecure_https)
+esp32FOTA::esp32FOTA(const char* firmwareType, int firmwareVersion, bool validate, bool allow_insecure_https)
 {
-    _cfg.name      = firmwareType.c_str();
+    _cfg.name      = firmwareType;
     _cfg.sem       = SemverClass( firmwareVersion );
     _cfg.check_sig = validate;
     _cfg.unsafe    = allow_insecure_https;
@@ -126,21 +136,18 @@ esp32FOTA::esp32FOTA(String firmwareType, int firmwareVersion, bool validate, bo
 }
 
 
-esp32FOTA::esp32FOTA(String firmwareType, String firmwareSemanticVersion, bool validate, bool allow_insecure_https)
+esp32FOTA::esp32FOTA(const char* firmwareType, const char* firmwareSemanticVersion, bool validate, bool allow_insecure_https)
 {
-    _cfg.name      = firmwareType.c_str();
+    _cfg.name      = firmwareType;
     _cfg.check_sig = validate;
     _cfg.unsafe    = allow_insecure_https;
-    _cfg.sem       = SemverClass( firmwareSemanticVersion.c_str() );
+    _cfg.sem       = SemverClass( firmwareSemanticVersion );
 
     setupCryptoAssets();
     debugSemVer("Current firmware version", _cfg.sem.ver() );
 }
 
 
-esp32FOTA::~esp32FOTA()
-{
-}
 
 
 void esp32FOTA::setCertFileSystem( fs::FS *cert_filesystem )
@@ -258,7 +265,7 @@ bool esp32FOTA::validate_sig( const esp_partition_t* partition, unsigned char *s
     }
     mbedtls_md_finish( &rsa, hash );
 
-    ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256, hash, mdinfo->size, (unsigned char*)signature, 512 );
+    ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256, hash, mdinfo->size, (unsigned char*)signature, FW_SIGNATURE_LENGTH );
 
     free( hash );
     mbedtls_md_free( &rsa );
@@ -276,13 +283,13 @@ bool esp32FOTA::validate_sig( const esp_partition_t* partition, unsigned char *s
 }
 
 
-bool esp32FOTA::setupHTTP( String url )
+bool esp32FOTA::setupHTTP( const char* url )
 {
     const char* rootcastr = nullptr;
     _http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
-    log_i("Connecting to: %s\r\n", url.c_str() );
-    if( url.substring( 0, 5 ) == "https" ) {
+    log_i("Connecting to: %s\r\n", url );
+    if( String(url).startsWith("https") ) {
         if (!_cfg.unsafe) {
             if( !_cfg.root_ca ) {
                 Serial.println("A strict security context has been set but no RootCA was provided");
@@ -324,9 +331,60 @@ bool esp32FOTA::setupHTTP( String url )
 }
 
 
+
+
+void esp32FOTA::setupStream()
+{
+    if(!getStream) {
+        switch( _stream_type ) {
+            case FOTA_FILE_STREAM:
+                setStreamGetter( getFileStream );
+            break;
+            case FOTA_SERIAL_STREAM:
+                setStreamGetter( getSerialStream );
+            break;
+            case  FOTA_HTTP_STREAM:
+            default:
+                setStreamGetter( getHTTPStream );
+            break;
+        }
+    }
+
+    if( !isConnected ) {
+        setStatusChecker( WiFiStatusCheck );
+    }
+}
+
+
+void esp32FOTA::stopStream()
+{
+    if( endStream ) { // user function provided via ::setStreamEnder( fn )
+        endStream( this );
+        return;
+    }
+
+    // no user function provided, apply default behaviour
+    switch( _stream_type ) {
+        case FOTA_FILE_STREAM:
+            if( _file ) _file.close();
+        break;
+        case  FOTA_HTTP_STREAM:
+            _http.end();
+        break;
+        case FOTA_SERIAL_STREAM:
+        default:
+        break;
+    }
+
+}
+
+
+
 // OTA Logic
 bool esp32FOTA::execOTA()
 {
+    setupStream();
+
     if( _flashFileSystemUrl != "" ) { // a data partition was specified in the json manifest, handle the spiffs partition first
         if( _fs ) { // Possible risk of overwriting certs and signatures, cancel flashing!
             Serial.println("Cowardly refusing to overwrite U_SPIFFS with "+_flashFileSystemUrl+". Use setCertFileSystem(nullptr) along with setPubKey()/setCAPem() to enable this feature.");
@@ -339,165 +397,98 @@ bool esp32FOTA::execOTA()
         log_i("This update is for U_FLASH only");
     }
     // handle the application partition and restart on success
-    return execOTA( U_FLASH, true );
+    bool ret = execOTA( U_FLASH, true );
+
+    stopStream();
+
+    return ret;
 }
+
+
 
 
 bool esp32FOTA::execOTA( int partition, bool restart_after )
 {
-    String UpdateURL = "";
-    String PartitionLabel = "";
-
-    switch( partition ) {
-        case U_SPIFFS: // spiffs/littlefs/fatfs partition
-            PartitionLabel = "data";
-            if( _flashFileSystemUrl == "" ) {
-                log_i("[SKIP] No spiffs/littlefs/fatfs partition was speficied");
-                return true;
-            }
-            UpdateURL = _flashFileSystemUrl;
-        break;
-        case U_FLASH: // app partition (default)
-        default:
-            PartitionLabel = "app" + String( partition );
-            partition = U_FLASH;
-            UpdateURL = _firmwareUrl;
-        break;
-    }
-
-    size_t contentLength = 0;
-    bool isValidContentType = false;
-
-    if(! setupHTTP( UpdateURL ) ) {
-      log_e("unable to setup http, aborting!");
+    // health checks
+    if( partition == U_SPIFFS && _flashFileSystemUrl == "" ) {
+      log_i("[SKIP] No spiffs/littlefs/fatfs partition was specified");
+      return true; // data partition is optional, so not an error
+    } else if ( partition == U_FLASH && _firmwareUrl == "" ) {
+      log_e("No app partition was specified");
+      return false; // app partition is mandatory
+    } else {
+      log_e("Bad partition number: %i or empty URL", partition);
       return false;
     }
 
-    // Stream& stream;
-    // if( ! getHTTPPayload( &stream ) ) {
-    //   log_e("HTTP Error");
-    //   return false;
-    // }
+    int64_t updateSize = getStream( this, partition );
 
-    int httpCode = _http.GET();
-
-    if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
-        contentLength = _http.header( "Content-Length" ).toInt();
-        String contentType = _http.header( "Content-type" );
-        if( contentType == "application/octet-stream" ) {
-            isValidContentType = true;
-        } else if( contentType == "application/gzip" ) {
-            // was gzipped by the server, needs decompression
-            // TODO: use gzStreamUpdater
-        } else if( contentType == "application/tar+gz" ) {
-            // was packaged and compressed, may contain more than one file
-            // TODO: use tarGzStreamUpdater
-        }
-    } else {
-        switch( httpCode ) {
-            // 1xx = Hold on
-            // 2xx = Here you go
-            // 3xx = Go away
-            // 4xx = You fucked up
-            // 5xx = I fucked up
-
-            case 204: log_e("Status: 204 (No contents), "); break;
-            case 401: log_e("Status: 401 (Unauthorized), check setExtraHTTPHeader() values"); break;
-            case 403: log_e("Status: 403 (Forbidden), check path on webserver?"); break;
-            case 404: log_e("Status: 404 (Not Found), also a palindrom, check path in manifest?"); break;
-            case 418: log_e("Status: 418 (I'm a teapot), Brit alert!"); break;
-            case 429: log_e("Status: 429 (Too many requests), throttle things down?"); break;
-            case 500: log_e("Status: 500 (Internal Server Error), you broke the webs!"); break;
-            default:
-                // This error may be a false positive or a consequence of the network being disconnected.
-                // Since the network is controlled from outside this class, only significant error messages are reported.
-                if( httpCode > 0 ) {
-                    Serial.printf("Server responded with HTTP Status '%i' when calling url '%s'. Please check your setup\n", httpCode, UpdateURL.c_str() );
-                } else {
-                    log_d("Unknown HTTP response");
-                }
-            break;
-        }
-
-        _http.end();
+    if( updateSize<=0 || _stream == nullptr ) {
+        log_e("HTTP Error");
         return false;
     }
 
-    // TODO: Not all streams respond with a content length.
-    // TODO: Set contentLength to UPDATE_SIZE_UNKNOWN when content type is valid.
+    bool mode_z = F_UseZlib;
+    // If using compression, the size is implicitely unknown
+    updateSize = mode_z ? UPDATE_SIZE_UNKNOWN : updateSize;
 
-    // check contentLength and content type
-    if( !contentLength || !isValidContentType ) {
-        Serial.printf("There was no content in the http response: (length: %i, valid: %s)\n", contentLength, isValidContentType?"true":"false");
-        _http.end();
+    if( _cfg.check_sig ) {
+      if( mode_z ) {
+        Serial.println("[ERROR] Compressed && signed image is not (yet) supported");
         return false;
+      }
+      if( updateSize != UPDATE_SIZE_UNKNOWN ) {
+        if( updateSize <= FW_SIGNATURE_LENGTH ) {
+          Serial.println("[ERROR] Malformed signature+fw combo");
+          return false;
+        }
+        updateSize -= FW_SIGNATURE_LENGTH;
+      }
     }
 
-    log_d("contentLength : %i, isValidContentType : %s", contentLength, String(isValidContentType));
-
-    if( _cfg.check_sig && contentLength != UPDATE_SIZE_UNKNOWN ) {
-        // If firmware is signed, extract signature and decrease content-length by 512 bytes for signature
-        contentLength -= 512;
-    }
-    // Check if there is enough available space on the partition to perform the Update
-    bool canBegin = Update.begin( contentLength, partition );
+    bool canBegin = F_canBegin();
 
     if( !canBegin ) {
         Serial.println("Not enough space to begin OTA, partition size mismatch?");
-        _http.end();
+        F_abort();
         if( onUpdateBeginFail ) onUpdateBeginFail( partition );
         return false;
     }
 
     if( onOTAProgress ) {
-        Update.onProgress( onOTAProgress );
+        F_Update.onProgress( onOTAProgress );
     } else {
-        Update.onProgress( [](size_t progress, size_t size) {
+        F_Update.onProgress( [](size_t progress, size_t size) {
             if( progress >= size ) Serial.println();
             else if( progress > 0) Serial.print(".");
         });
     }
 
-    Stream& stream = _http.getStream();
-
-    unsigned char signature[512];
+    unsigned char signature[FW_SIGNATURE_LENGTH];
     if( _cfg.check_sig ) {
-        stream.readBytes( signature, 512 );
+        _stream->readBytes( signature, FW_SIGNATURE_LENGTH );
     }
+
     Serial.printf("Begin %s OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!\n", partition==U_FLASH?"Firmware":"Filesystem");
-    // Some activity may appear in the Serial monitor during the update (depends on Update.onProgress).
-    // This may take 2 - 5mins to complete
-    size_t written = Update.writeStream( stream );
+    // Some activity may appear in the Serial monitor during the update (depends on Update.onProgress)
+    size_t written = F_Update.writeStream( *_stream );
 
-    if ( written == contentLength) {
+    if ( written == updateSize) {
         Serial.println("Written : " + String(written) + " successfully");
-    } else if ( contentLength == UPDATE_SIZE_UNKNOWN ) {
+    } else if ( updateSize == UPDATE_SIZE_UNKNOWN ) {
         Serial.println("Written : " + String(written) + " successfully");
-        contentLength = written; // populate value as it was unknown until now
+        updateSize = written; // populate value as it was unknown until now
     } else {
-        Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Premature end of stream?");
-        contentLength = written; // flatten value to prevent overflow when checking signature
+        Serial.println("Written only : " + String(written) + "/" + String(updateSize) + ". Premature end of stream?");
+        F_abort();
+        return false;
+        //updateSize = written; // flatten value to prevent overflow when checking signature
     }
 
-    if (!Update.end()) {
-        Serial.println("An Update Error Occurred. Error #: " + String(Update.getError()));
-        // #define UPDATE_ERROR_OK                 (0)
-        // #define UPDATE_ERROR_WRITE              (1)
-        // #define UPDATE_ERROR_ERASE              (2)
-        // #define UPDATE_ERROR_READ               (3)
-        // #define UPDATE_ERROR_SPACE              (4)
-        // #define UPDATE_ERROR_SIZE               (5)
-        // #define UPDATE_ERROR_STREAM             (6)
-        // #define UPDATE_ERROR_MD5                (7)
-        // #define UPDATE_ERROR_MAGIC_BYTE         (8)
-        // #define UPDATE_ERROR_ACTIVATE           (9)
-        // #define UPDATE_ERROR_NO_PARTITION       (10)
-        // #define UPDATE_ERROR_BAD_ARGUMENT       (11)
-        // #define UPDATE_ERROR_ABORT              (12)
+    if (!F_Update.end()) {
+        Serial.println("An Update Error Occurred. Error #: " + String(F_Update.getError()));
         return false;
     }
-
-    _http.end();
 
     if( onUpdateEnd ) onUpdateEnd( partition );
 
@@ -527,11 +518,11 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
             // by temporarily reassigning the bootable flag to the running-partition instead
             // of the next-partition.
             esp_ota_set_boot_partition( running_partition );
-            // By doing so the ESP will NOT boot any unvalidated partition should a crash occur
-            // during signature validation.
+            // By doing so the ESP will NOT boot any unvalidated partition should a reset occur
+            // during signature validation (crash, oom, power failure).
         }
 
-        if( !validate_sig( _target_partition, signature, contentLength ) ) {
+        if( !validate_sig( _target_partition, signature, updateSize ) ) {
             // erase partition
             esp_partition_erase_range( _target_partition, _target_partition->address, _target_partition->size );
 
@@ -552,7 +543,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         }
     }
     //Serial.println("OTA Update complete!");
-    if (Update.isFinished()) {
+    if (F_Update.isFinished()) {
 
         if( onUpdateFinished ) onUpdateFinished( partition, restart_after );
 
@@ -675,6 +666,8 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
 }
 
 
+
+
 bool esp32FOTA::execHTTPcheck()
 {
     String useURL = String( _cfg.manifest_url );
@@ -697,25 +690,18 @@ bool esp32FOTA::execHTTPcheck()
         useURL += argseparator + "id=" + getDeviceID();
     }
 
-    if ((WiFi.status() != WL_CONNECTED)) {  //Check the current connection status
-        log_i("WiFi not connected - skipping HTTP check");
+    if ( isConnected && !isConnected() ) { // Check the current connection status
+        log_i("Connection check requested but network not ready - skipping");
         return false;  // WiFi not connected
     }
 
     log_i("Getting HTTP: %s", useURL.c_str());
     log_i("------");
 
-    if(! setupHTTP( useURL ) ) {
-      log_e("unable to setup http, aborting!");
+    if(! setupHTTP( useURL.c_str() ) ) {
+      log_e("Unable to setup http, aborting!");
       return false;
     }
-
-
-    // String payload;
-    // if( ! getHTTPPayload( &payload ) ) {
-    //   log_e("HTTP Error");
-    //   return false;
-    // }
 
     int httpCode = _http.GET();  //Make the request
 
@@ -829,5 +815,146 @@ void esp32FOTA::debugSemVer( const char* label, semver_t* version )
    semver_render( version, version_no );
    log_i("%s: %s", label, version_no );
 }
+
+
+
+
+
+
+static int64_t getHTTPStream( esp32FOTA* fota, int partition )
+{
+
+    const char* url = partition==U_SPIFFS ? fota->getFlashFS_URL() : fota->getFirmwareURL();
+    Serial.printf("Opening item %s\n", url );
+
+    HTTPClient *http = fota->getHTTPCLient();
+
+    if(! fota->setupHTTP( url ) ) { // certs
+        log_e("unable to setup http, aborting!");
+        return -1;
+    }
+
+    int64_t updateSize = 0;
+    bool isValidContentType = false;
+    int httpCode = http->GET();
+
+    fota->setFotaStream( nullptr );
+
+    if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
+        updateSize = http->header( "Content-Length" ).toInt();
+        String contentType = http->header( "Content-type" );
+        if( contentType == "application/octet-stream" ) {
+            isValidContentType = true;
+        } else if( contentType == "application/gzip" ) {
+            // was gzipped by the server, needs decompression
+            // TODO: use gzStreamUpdater
+        } else if( contentType == "application/tar+gz" || contentType == "application/x-gtar" ) {
+            // was packaged and compressed, may contain more than one file
+            // TODO: use tarGzStreamUpdater
+        }
+    } else {
+        switch( httpCode ) {
+            // 1xx = Hold on
+            // 2xx = Here you go
+            // 3xx = Go away
+            // 4xx = You fucked up
+            // 5xx = I fucked up
+
+            case 204: log_e("Status: 204 (No contents), "); break;
+            case 401: log_e("Status: 401 (Unauthorized), check setExtraHTTPHeader() values"); break;
+            case 403: log_e("Status: 403 (Forbidden), check path on webserver?"); break;
+            case 404: log_e("Status: 404 (Not Found), also a palindrom, check path in manifest?"); break;
+            case 418: log_e("Status: 418 (I'm a teapot), Brit alert!"); break;
+            case 429: log_e("Status: 429 (Too many requests), throttle things down?"); break;
+            case 500: log_e("Status: 500 (Internal Server Error), you broke the webs!"); break;
+            default:
+                // This error may be a false positive or a consequence of the network being disconnected.
+                // Since the network is controlled from outside this class, only significant error messages are reported.
+                if( httpCode > 0 ) {
+                    Serial.printf("Server responded with HTTP Status '%i'. Please check your setup\n", httpCode );
+                } else {
+                    log_d("Unknown HTTP response");
+                }
+            break;
+        }
+
+        return -1;
+    }
+
+    // TODO: Not all streams respond with a content length.
+    // TODO: Set updateSize to UPDATE_SIZE_UNKNOWN when content type is valid.
+
+    // check updateSize and content type
+    if( !updateSize || !isValidContentType ) {
+        Serial.printf("There was no content in the http response: (length: %lli, valid: %s)\n", updateSize, isValidContentType?"true":"false");
+        return -1;
+    }
+
+    log_d("updateSize : %i, isValidContentType : %s", updateSize, String(isValidContentType));
+
+    fota->setFotaStream( http->getStreamPtr() );
+
+    return updateSize;
+}
+
+
+
+static int64_t getFileStream( esp32FOTA* fota, int partition)
+{
+    fs::FS* fs = fota->getFotaFS();
+
+    if(!fs ) {
+      Serial.println("[ERROR] No filesystem defined, use ::setCertFileSystem( &SD ) ");
+      return -1;
+    }
+
+    const char* path = partition==U_SPIFFS ? fota->getFlashFS_URL() : fota->getFirmwareURL();
+    Serial.printf("Opening item %s\n", path );
+
+    fs::File* file = (fs::File*)fota->getFotaStreamPtr();
+    *file = fs->open( path );
+
+    if(! file ) {
+        log_e("unable to access filesystem, aborting!");
+        return -1;
+    }
+
+    int64_t updateSize = file->size();
+
+    // check updateSize and content type
+    if( !updateSize ) {
+        Serial.println("[ERROR] Empty file");
+        file->close();
+        fota->setFotaStream( nullptr );
+        return -1;
+    }
+
+    log_d("updateSize : %i", updateSize);
+
+    return updateSize;
+}
+
+
+
+static int64_t getSerialStream( esp32FOTA* fota, int partition)
+{
+    return -1;
+}
+
+
+
+static bool WiFiStatusCheck()
+{
+    return (WiFi.status() == WL_CONNECTED);
+}
+
+/*
+static bool EthernetStatusCheck()
+{
+    return eth_connected;
+}
+*/
+
+
 
 #pragma GCC diagnostic pop

@@ -13,7 +13,10 @@
 #include <LittleFS.h>
 //#include <PSRamFS.h>
 
+#include <flashz.hpp> // optional esp32-flashz for gzipped firmwares
+
 #include <esp32fota.h> // fota pulls WiFi library
+
 
 
 // esp32fota settings
@@ -36,11 +39,50 @@ CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &LittleFS );
 // CryptoMemAsset *MyRSAKey = new CryptoMemAsset("RSA Public Key",     rsa_key_pub, strlen(rsa_key_pub)+1 );
 
 
-esp32FOTA FOTA;
-//esp32FOTA esp32FOTA( String(firmware_name), firmware_version, check_signature, disable_security );
+esp32FOTA FOTA; // empty constructor
 
 
-//esp32FOTA esp32FOTA("esp32-fota-http", 1, false );
+// bool available( stream*) // returns stream->available() or (stream->peek() == ZLIB_HEADER)
+// size_t size() // returns size or UPDATE_SIZE_UNKNOWN
+// bool canBegin( fwsize, partition ) // should call Update.begin( fwsize, partition )
+// void onBeginFailCb( partition ) // abort !
+// void onProgressCb( size_t progress, size_t total ) // delegate to Update.onProgress
+// void writeCb( *stream, size ) // FlashZ::getInstance().writezStream(*stream, contentLength), FlashZ::getInstance().writeStream(*stream), Update, Update.writeStream
+
+
+
+int64_t myStreamGetter( esp32FOTA* fota, int partition  )
+{
+  const char* path = fota->getPath( partition );
+  Serial.printf("Opening %s\n", path );
+
+  // retrieve fota stream pointer
+  Stream* fotaStream = fota->getFotaStreamPtr();
+  //auto myStream = FlashZ::getInstance();
+
+  // overwrite pointer with custom stream object
+  //*fotaStream = new blahStream( my args ... );
+
+  int size = fotaStream->available();
+
+  if( size <= 0 ) {
+    fota->setFotaStream( nullptr );
+    return -1;
+  }
+
+  return size;
+}
+// FOTA.setStreamGetter( myStreamGetter );
+
+
+
+
+
+bool WiFiConnected()
+{
+    return (WiFi.status() == WL_CONNECTED);
+}
+
 
 void setup_wifi()
 {
@@ -50,7 +92,7 @@ void setup_wifi()
 
   WiFi.begin(); // no WiFi creds in this demo :-)
 
-  while (WiFi.status() != WL_CONNECTED)
+  while ( !WiFiConnected() )
   {
     delay(500);
     Serial.print(".");
@@ -85,6 +127,10 @@ void setup()
 
     FOTA.setConfig( cfg );
   }
+
+
+  // FOTA.setStatusChecker( WiFiConnected );
+
 
   // /!\ FOTA.checkURL is deprecated, use setManifestURL( String ) instead
   //FOTA.setManifestURL( FOTA_URL );
