@@ -172,7 +172,8 @@ jobs:
       matrix:
 
         sketch:
-        - 1.nosecurity.ino
+        - 1.1.nosecurity.ino
+        - 1.2.nosecurity.gz.ino
         - 2.cert-in-spiffs.ino
         - 3.cert-in-progmem.ino
         - 4.cert-in-littlefs.ino
@@ -182,7 +183,7 @@ jobs:
 
     steps:
 
-    - name: Checkout
+    - name: Checkout Current
       uses: actions/checkout@v2
       with:
         ref: ${{ github.event.pull_request.head.sha }}
@@ -208,6 +209,13 @@ jobs:
         cp ${{env.cert_path}}/root_ca.h $root_ca_c_path
         cp ${{env.cert_path}}/pub_key.h $pub_key_c_path
 
+    - name: Checkout esp32-flashz
+      uses: actions/checkout@v2
+      with:
+        repository: vortigont/esp32-flashz
+        ref: main
+        path: CustomflashZ # must contain string "Custom"
+
     - name: Compile ${{ matrix.sketch }}
       uses: ArminJo/arduino-test-compile@v3
       with:
@@ -219,7 +227,7 @@ jobs:
         sketch-names: ${{ matrix.sketch }}
         set-build-path: true
 
-    - name: Sign and Save compiled binary
+    - name: Sign and Save binaries
       run: |
         mkdir -p ${{env.artifact_path}}
         full_ino_bin_path=`find ${{env.work_path}}/ | grep "build/${{ matrix.sketch }}.bin"`
@@ -227,6 +235,7 @@ jobs:
         cat firmware.sign $full_ino_bin_path > $full_ino_bin_path.img
         cp $full_ino_bin_path ${{env.artifact_path}}/${{ matrix.sketch }}.bin
         cp $full_ino_bin_path.img ${{env.artifact_path}}/${{ matrix.sketch }}.signed.bin
+        gzip -c $full_ino_bin_path > ${{env.artifact_path}}/${{ matrix.sketch }}.bin.gz
 
 
     - name: Prepare data folder
@@ -252,6 +261,9 @@ jobs:
         # Create the partition binaries
         ${{env.mkspiffs_esp32}} -c ${{env.data_path}} -p 256 -b 4096 -s $${{inputs.partition_scheme}}_size ${{env.spiffs_bin_path}}
         ${{env.mklittlefs_esp32}} -c ${{env.data_path}} -p 256 -b 4096 -s $${{inputs.partition_scheme}}_size ${{env.littlefs_bin_path}}
+        # Create gzipped versions
+        gzip -c ${{env.littlefs_bin_path}} > ${{env.littlefs_bin_path}}.gz
+        gzip -c ${{env.spiffs_bin_path}} > ${{env.spiffs_bin_path}}.gz
 
         # Sign partition binaries
         openssl dgst -sign ${{env.privkey_path}} -keyform PEM -sha256 -out firmware.sign -binary ${{env.spiffs_bin_path}}

@@ -1,9 +1,16 @@
 [{
     "type": "FIRMWARE_TYPE",
-    "version": 1,
+    "version": "1.1",
     "host": "FIRMWARE_HOST",
     "port": FIRMWARE_PORT,
-    "bin": "FIRMWARE_PATH/1.nosecurity.ino.bin?raw=true"
+    "bin": "FIRMWARE_PATH/1.1.nosecurity.ino.bin?raw=true"
+},
+{
+    "type": "FIRMWARE_TYPE",
+    "version": "1.2",
+    "host": "FIRMWARE_HOST",
+    "port": FIRMWARE_PORT,
+    "bin": "FIRMWARE_PATH/1.2.nosecurity.ino.bin.gz?raw=true"
 },
 {
     "type": "FIRMWARE_TYPE",

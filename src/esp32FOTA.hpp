@@ -40,7 +40,6 @@ extern "C" {
 #include <map>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
-#include <Update.h>
 #include <ArduinoJson.h>
 #include <FS.h>
 
@@ -70,6 +69,25 @@ extern "C" {
 #else
   // #pragma message "No filesystem provided, certificate validation will be unavailable (hint: include SD, SPIFFS or LittleFS before including this library)"
   #define FOTA_FS nullptr
+#endif
+
+
+#if __has_include(<flashz.hpp>)
+  #include <flashz.hpp>
+  #define F_Update FlashZ::getInstance()
+  #define F_hasZlib() true
+  #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER)
+  #define F_canBegin() mode_z ? F_Update.beginz(updateSize, partition) : F_Update.begin(updateSize, partition)
+  #define F_abort() if (mode_z) F_Update.abortz()
+  #define F_writeStream() mode_z ? F_Update.writezStream(*stream, contentLength) : F_Update.writeStream(*stream)
+#else
+  #include <Update.h>
+  #define F_Update Update
+  #define F_hasZlib() false
+  #define F_isZlibStream() false
+  #define F_canBegin() F_Update.begin( updateSize, partition )
+  #define F_abort() { }
+  #define F_writeStream() F_Update.writeStream( *_stream );
 #endif
 
 
@@ -140,17 +158,31 @@ struct FOTAConfig_t
 };
 
 
+enum FOTAStreamType_t
+{
+  FOTA_HTTP_STREAM,
+  FOTA_FILE_STREAM,
+  FOTA_SERIAL_STREAM
+};
+
 
 // Main Class
-class esp32FOTA
+class esp32FOTA : public UpdateClass
 {
 public:
 
   esp32FOTA();
-  esp32FOTA( FOTAConfig_t cfg );
-  esp32FOTA(String firwmareType, int firwmareVersion,            bool validate = false, bool allow_insecure_https = false );
-  esp32FOTA(String firwmareType, String firmwareSemanticVersion, bool validate = false, bool allow_insecure_https = false );
   ~esp32FOTA();
+
+  esp32FOTA( FOTAConfig_t cfg );
+  esp32FOTA(const char* firwmareType, int firwmareVersion, bool validate = false, bool allow_insecure_https = false );
+  esp32FOTA(const String &firwmareType, int firwmareVersion, bool validate = false, bool allow_insecure_https = false )
+    : esp32FOTA(firwmareType.c_str(), firwmareVersion, validate, allow_insecure_https){};
+  esp32FOTA(const char* firwmareType, const char* firmwareSemanticVersion, bool validate = false, bool allow_insecure_https = false );
+  esp32FOTA(const String &firwmareType, const String &firmwareSemanticVersion, bool validate = false, bool allow_insecure_https = false )
+    : esp32FOTA(firwmareType.c_str(), firmwareSemanticVersion.c_str(), validate, allow_insecure_https){};
+
+
 
   template <typename T> void setPubKey( T* asset ) { _cfg.pub_key = (CryptoAsset*)asset; _cfg.check_sig = true; }
   template <typename T> void setRootCA( T* asset ) { _cfg.root_ca = (CryptoAsset*)asset; _cfg.unsafe = false; }
@@ -160,18 +192,29 @@ public:
   void forceUpdate(const String &firmwareHost, uint16_t firmwarePort, const String &firmwarePath, bool validate ){ forceUpdate(firmwareHost.c_str(), firmwarePort, firmwarePath.c_str(), validate ); };
   void forceUpdate(const String &firmwareURL, bool validate ){ forceUpdate(firmwareURL.c_str(), validate); };
   void forceUpdate(bool validate );
+  //template <class U> static U& getInstance() { static U updater; return updater; }
+
   bool execOTA();
   bool execOTA( int partition, bool restart_after = true );
   bool execHTTPcheck();
-  int getPayloadVersion();
-  void getPayloadVersion(char * version_string);
 
-  void setManifestURL( String manifest_url ) { _cfg.manifest_url = manifest_url.c_str(); }
   void useDeviceId( bool use=true ) { _cfg.use_device_id = use; }
-  bool validate_sig( const esp_partition_t* partition, unsigned char *signature, uint32_t firmware_size );
+
+  // config setter
+  void setConfig( FOTAConfig_t cfg ) { _cfg = cfg; }
+
+  // Manually specify the manifest url, this is provided as a transition between legagy and new config system
+  void setManifestURL( const String &manifest_url ) { _cfg.manifest_url = manifest_url.c_str(); }
+
+  // use this to set "Authorization: Basic" or other specific headers to be sent with the queries
+  void setExtraHTTPHeader( String name, String value ) { extraHTTPHeaders[name] = value; }
+
+  // /!\ Only use this to change filesystem for **default** RootCA and PubKey paths.
+  // Otherwise use setPubKey() and setRootCA()
+  void setCertFileSystem( fs::FS *cert_filesystem = nullptr );
 
   // this is passed to Update.onProgress()
-  typedef std::function<void(size_t, size_t)> ProgressCallback_cb; // size_t progress, size_t size
+  typedef std::function<void(size_t,size_t)> ProgressCallback_cb; // size_t progress, size_t size
   void setProgressCb(ProgressCallback_cb fn) { onOTAProgress = fn; } // callback setter
 
   // when Update.begin() returned false
@@ -190,26 +233,66 @@ public:
   typedef std::function<void(int,bool)> UpdateFinished_cb; // int partition (U_FLASH or U_SPIFFS), bool restart_after
   void setUpdateFinishedCb(UpdateFinished_cb fn) { onUpdateFinished = fn; } // callback setter
 
-  // use this to set "Authorization: Basic" or other specific headers to be sent with the queries
-  void setExtraHTTPHeader( String name, String value ) { extraHTTPHeaders[name] = value; }
+  // stream getter
+  typedef std::function<int64_t(esp32FOTA*,int)> getStream_cb; // esp32FOTA* this, int partition (U_FLASH or U_SPIFFS), returns stream size
+  void setStreamGetter( getStream_cb fn ) { getStream = fn; } // callback setter
 
-  // /!\ Only use this to change filesystem for **default** RootCA and PubKey paths.
-  // Otherwise use setPubKey() and setRootCA()
-  void setCertFileSystem( fs::FS *cert_filesystem = nullptr );
+  // stream ender
+  typedef std::function<void(esp32FOTA*)> endStream_cb; // esp32FOTA* this
+  void setStreamEnder( endStream_cb fn ) { endStream = fn; } // callback setter
 
-  // config getters and setters
-  FOTAConfig_t getConfig() { return _cfg; };
-  void setConfig( FOTAConfig_t cfg ) { _cfg = cfg; }
+  // connection check
+  typedef std::function<bool()> isConnected_cb; //
+  void setStatusChecker( isConnected_cb fn ) { isConnected = fn; } // callback setter
+
+  // updating from a File or from Serial?
+  void setStreamType( FOTAStreamType_t stream_type ) { _stream_type = stream_type; }
+
+  const char*       getManifestURL()   { return _manifestUrl.c_str(); }
+  const char*       getFirmwareURL()   { return _firmwareUrl.c_str(); }
+  const char*       getFlashFS_URL()   { return _flashFileSystemUrl.c_str(); }
+  const char*       getPath(int part)  { return part==U_SPIFFS ? getFlashFS_URL() : getFirmwareURL(); }
+
+  int               getPayloadVersion();
+  void              getPayloadVersion(char * version_string);
+
+  FOTAConfig_t      getConfig()        { return _cfg; };
+  FOTAStreamType_t  getStreamType()    { return _stream_type; }
+  HTTPClient*       getHTTPCLient()    { return &_http; }
+  WiFiClientSecure* getWiFiClient()    { return &_client; }
+  fs::File*         getFotaFilePtr()   { return &_file; }
+  Stream*           getFotaStreamPtr() { return _stream; }
+  fs::FS*           getFotaFS()        { return _fs; }
+
+  // internals but need to be exposed to the callbacks
+  bool setupHTTP( const char* url );
+  void setFotaStream( Stream* stream ) { _stream = stream; }
+
+
+  //friend class FlashZ;
+
 
   [[deprecated("Use setManifestURL( String ) or cfg.manifest_url with setConfig( FOTAConfig_t )")]] String checkURL = "";
   [[deprecated("Use cfg.use_device_id with setConfig( FOTAConfig_t )")]] bool useDeviceID = false;
 
+
 private:
+
+  HTTPClient _http;
+  WiFiClientSecure _client;
+  Stream *_stream;
+  fs::File _file;
+
+  FOTAStreamType_t _stream_type = FOTA_HTTP_STREAM; // defaults to HTTP
+
+  void setupStream();
+  void stopStream();
 
   FOTAConfig_t _cfg;
 
   SemverClass _payload_sem = SemverClass(0,0,0);
 
+  String _manifestUrl;
   String _firmwareUrl;
   String _flashFileSystemUrl;
 
@@ -221,6 +304,9 @@ private:
   UpdateEnd_cb        onUpdateEnd; // after Update.end() and before validate_sig()
   UpdateCheckFail_cb  onUpdateCheckFail; // validate_sig() error handling, mixed situations
   UpdateFinished_cb   onUpdateFinished; // update successful
+  getStream_cb        getStream; // optional stream getter, defaults to http.getStreamPtr()
+  endStream_cb        endStream; // optional stream closer, defaults to http.end()
+  isConnected_cb      isConnected; // optional connection checker, defaults to WiFi.status()==WL_CONNECTED
 
   std::map<String,String> extraHTTPHeaders; // this holds the extra http headers defined by the user
 
@@ -228,6 +314,8 @@ private:
   bool checkJSONManifest(JsonVariant JSONDocument);
   void debugSemVer( const char* label, semver_t* version );
   void getPartition( int update_partition );
+
+  bool validate_sig( const esp_partition_t* partition, unsigned char *signature, uint32_t firmware_size );
 
   // temporary partition holder for signature check operations
   const esp_partition_t* _target_partition = nullptr;
