@@ -73,21 +73,24 @@ extern "C" {
 
 
 #if __has_include(<flashz.hpp>)
+  #pragma message "Using FlashZ as Update agent"
   #include <flashz.hpp>
   #define F_Update FlashZ::getInstance()
   #define F_hasZlib() true
   #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER)
-  #define F_canBegin() mode_z ? F_Update.beginz(updateSize, partition) : F_Update.begin(updateSize, partition)
+  #define F_canBegin() mode_z ? F_Update.beginz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(fwsize, partition)
+  #define F_UpdateEnd() F_Update.endz()
   #define F_abort() if (mode_z) F_Update.abortz()
-  #define F_writeStream() mode_z ? F_Update.writezStream(*stream, contentLength) : F_Update.writeStream(*stream)
+  #define F_writeStream() (mode_z ? F_Update.writezStream(*_stream, updateSize) : F_Update.writeStream(*_stream))
 #else
   #include <Update.h>
   #define F_Update Update
   #define F_hasZlib() false
   #define F_isZlibStream() false
-  #define F_canBegin() F_Update.begin( updateSize, partition )
+  #define F_canBegin() F_Update.begin(fwsize, partition)
+  #define F_UpdateEnd() F_Update.end()
   #define F_abort() { }
-  #define F_writeStream() F_Update.writeStream( *_stream );
+  #define F_writeStream() F_Update.writeStream(*_stream);
 #endif
 
 
@@ -252,6 +255,8 @@ public:
   const char*       getFlashFS_URL()   { return _flashFileSystemUrl.c_str(); }
   const char*       getPath(int part)  { return part==U_SPIFFS ? getFlashFS_URL() : getFirmwareURL(); }
 
+  bool              canUnzip()         { return mode_z; }
+
   int               getPayloadVersion();
   void              getPayloadVersion(char * version_string);
 
@@ -281,6 +286,8 @@ private:
   WiFiClientSecure _client;
   Stream *_stream;
   fs::File _file;
+
+  bool mode_z = F_hasZlib(); // F_isZlibStream();
 
   FOTAStreamType_t _stream_type = FOTA_HTTP_STREAM; // defaults to HTTP
 

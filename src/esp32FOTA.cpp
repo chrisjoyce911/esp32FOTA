@@ -428,9 +428,12 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         return false;
     }
 
-    bool mode_z = F_isZlibStream();
+    mode_z = F_isZlibStream();
+    log_d("compression: %s", mode_z ? "enabled" : "disabled" );
     // If using compression, the size is implicitely unknown
-    updateSize = mode_z ? UPDATE_SIZE_UNKNOWN : updateSize;
+    size_t fwsize = mode_z ? UPDATE_SIZE_UNKNOWN : updateSize;       // fw_size is unknown if we have a compressed image
+
+    //updateSize = mode_z ? UPDATE_SIZE_UNKNOWN : updateSize;
 
     if( _cfg.check_sig ) {
       if( mode_z ) {
@@ -471,13 +474,13 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
 
     Serial.printf("Begin %s OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!\n", partition==U_FLASH?"Firmware":"Filesystem");
     // Some activity may appear in the Serial monitor during the update (depends on Update.onProgress)
-    size_t written = F_Update.writeStream( *_stream );
+    size_t written = F_writeStream();
 
-    if ( written == updateSize) {
+    if (fwsize == UPDATE_SIZE_UNKNOWN)      // match compressed fw size to responce length
+        fwsize = updateSize;
+
+    if ( written == fwsize ) {
         Serial.println("Written : " + String(written) + " successfully");
-    } else if ( updateSize == UPDATE_SIZE_UNKNOWN ) {
-        Serial.println("Written : " + String(written) + " successfully");
-        updateSize = written; // populate value as it was unknown until now
     } else {
         Serial.println("Written only : " + String(written) + "/" + String(updateSize) + ". Premature end of stream?");
         F_abort();
@@ -485,7 +488,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         //updateSize = written; // flatten value to prevent overflow when checking signature
     }
 
-    if (!F_Update.end()) {
+    if (!F_UpdateEnd()) {
         Serial.println("An Update Error Occurred. Error #: " + String(F_Update.getError()));
         return false;
     }
@@ -828,7 +831,7 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
 
     Serial.printf("Opening item %s\n", url );
 
-    HTTPClient *http = fota->getHTTPCLient();
+    //HTTPClient *http = fota->getHTTPCLient();
 
     if(! fota->setupHTTP( url ) ) { // certs
         log_e("unable to setup http, aborting!");
@@ -837,18 +840,20 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
 
     int64_t updateSize = 0;
     bool isValidContentType = false;
-    int httpCode = http->GET();
+    int httpCode = fota->getHTTPCLient()->GET();
+    String contentType;
 
     fota->setFotaStream( nullptr );
 
     if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
-        updateSize = http->header( "Content-Length" ).toInt();
-        String contentType = http->header( "Content-type" );
+        //updateSize = fota->getHTTPCLient()->header( "Content-Length" ).toInt();
+        updateSize = fota->getHTTPCLient()->getSize();
+        contentType = fota->getHTTPCLient()->header( "Content-type" );
         if( contentType == "application/octet-stream" ) {
             isValidContentType = true;
-        } else if( contentType == "application/gzip" ) {
+        } else if( contentType == "application/gzip" || contentType == "application/x-gzip" || contentType == "application/x-compress" ) {
             // was gzipped by the server, needs decompression
-            isValidContentType = F_hasZlib();
+            isValidContentType = fota->canUnzip();
         } else if( contentType == "application/tar+gz" || contentType == "application/x-gtar" ) {
             // was packaged and compressed, may contain more than one file
             // TODO: use tarGzStreamUpdater
@@ -887,13 +892,13 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
 
     // check updateSize and content type
     if( !updateSize || !isValidContentType ) {
-        Serial.printf("There was no content in the http response: (length: %"PRId64", valid: %s)\n", updateSize, isValidContentType?"true":"false");
+        Serial.printf("There was no content in the http response: (length: %" PRId64 ", valid: %s, contentType: %s)\n", updateSize, isValidContentType?"true":"false", contentType.c_str());
         return -1;
     }
 
-    log_d("updateSize : %"PRId64", isValidContentType : %s", updateSize, String(isValidContentType));
+    log_d("updateSize : %" PRId64 ", isValidContentType : %s, contentType: %s", updateSize, String(isValidContentType).c_str(), contentType.c_str());
 
-    fota->setFotaStream( http->getStreamPtr() );
+    fota->setFotaStream( fota->getHTTPCLient()->getStreamPtr() );
 
     return updateSize;
 }
