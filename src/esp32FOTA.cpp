@@ -279,7 +279,7 @@ bool esp32FOTA::validate_sig( const esp_partition_t* partition, unsigned char *s
 // OTA Logic
 bool esp32FOTA::execOTA()
 {
-    if( _flashFileSystemUrl != "" ) { // a data partition was specified in the json manifest, handle the spiffs partition first
+    if( !_flashFileSystemUrl.isEmpty() ) { // a data partition was specified in the json manifest, handle the spiffs partition first
         if( _fs ) { // Possible risk of overwriting certs and signatures, cancel flashing!
             Serial.println("Cowardly refusing to overwrite U_SPIFFS with "+_flashFileSystemUrl+". Use setCertFileSystem(nullptr) along with setPubKey()/setCAPem() to enable this feature.");
             return false;
@@ -586,8 +586,8 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
     }
     log_i("Payload type in manifest %s matches current firmware %s", doc["type"].as<const char *>(), _cfg.name );
 
-    _flashFileSystemUrl = "";
-    _firmwareUrl        = "";
+    _flashFileSystemUrl.clear();
+    _firmwareUrl.clear();
 
     if(doc["version"].is<uint16_t>()) {
         uint16_t v = doc["version"].as<uint16_t>();
@@ -606,26 +606,26 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
     debugSemVer("Payload firmware version", _payload_sem.ver() );
 
     // Memoize some values to help with the decision tree
-    bool has_url        = doc.containsKey("url") && doc["url"].is<String>();
-    bool has_firmware   = doc.containsKey("bin") && doc["bin"].is<String>();
-    bool has_hostname   = doc.containsKey("host") && doc["host"].is<String>();
-    bool has_port       = doc.containsKey("port") && doc["port"].is<uint16_t>();
-    uint16_t portnum    = has_port ? doc["port"].as<uint16_t>() : 0;
+    bool has_url        = doc["url"].is<const char*>();
+    bool has_firmware   = doc["bin"].is<const char*>();
+    bool has_hostname   = doc["host"].is<const char*>();
+    bool has_port       = doc["port"].is<uint16_t>();
+    uint16_t portnum    = doc["port"].as<uint16_t>();
     bool has_tls        = has_port ? (portnum  == 443 || portnum  == 4433) : false;
-    bool has_spiffs     = doc.containsKey("spiffs") && doc["spiffs"].is<String>();
-    bool has_littlefs   = doc.containsKey("littlefs") && doc["littlefs"].is<String>();
-    bool has_fatfs      = doc.containsKey("fatfs") && doc["fatfs"].is<String>();
+    bool has_spiffs     = doc["spiffs"].is<const char*>();
+    bool has_littlefs   = doc["littlefs"].is<const char*>();
+    bool has_fatfs      = doc["fatfs"].is<const char*>();
     bool has_filesystem = has_littlefs || has_spiffs || has_fatfs;
 
-    String protocol     = has_tls ? "https" : "http";
+    String protocol(has_tls ? "https" : "http");
     String flashFSPath  =
       has_filesystem
       ? (
         has_littlefs
-        ? doc["littlefs"].as<String>()
+        ? doc["littlefs"].as<const char*>()
         : has_spiffs
-          ? doc["spiffs"].as<String>()
-          : doc["fatfs"].as<String>()
+          ? doc["spiffs"].as<const char*>()
+          : doc["fatfs"].as<const char*>()
         )
       : "";
 
@@ -638,14 +638,14 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
     );
 
     if( has_url ) { // Basic scenario: a complete URL was provided in the JSON manifest, all other keys will be ignored
-        _firmwareUrl = doc["url"].as<String>();
+        _firmwareUrl = doc["url"].as<const char*>();
         if( has_hostname ) { // If the manifest provides both, warn the user
             log_w("Manifest provides both url and host - Using URL");
         }
     } else if( has_firmware && has_hostname && has_port ) { // Precise scenario: Hostname, Port and Firmware Path were provided
-        _firmwareUrl = protocol + "://" + doc["host"].as<String>() + ":" + String( portnum  ) + doc["bin"].as<String>();
+        _firmwareUrl = protocol + "://" + doc["host"].as<const char*>() + ":" + portnum + doc["bin"].as<const char*>();
         if( has_filesystem ) { // More complex scenario: the manifest also provides a [spiffs, littlefs or fatfs] partition
-            _flashFileSystemUrl = protocol + "://" + doc["host"].as<String>() + ":" + String( portnum  ) + flashFSPath;
+            _flashFileSystemUrl = protocol + "://" + doc["host"].as<const char*>() + ":" + portnum + flashFSPath;
         }
     } else { // JSON was malformed - no firmware target was provided
         log_e("JSON manifest was missing one of the required keys :(" );
@@ -663,10 +663,15 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
 
 bool esp32FOTA::execHTTPcheck()
 {
-    String useURL = String( _cfg.manifest_url );
+    if ((WiFi.status() != WL_CONNECTED)) {  //Check the current connection status
+        log_i("WiFi not connected - skipping HTTP check");
+        return false;  // WiFi not connected
+    }
+
+    String useURL(_cfg.manifest_url );
 
     // being deprecated, soon unsupported!
-    if( useURL=="" && checkURL!="" ) {
+    if( useURL.isEmpty() && !checkURL.isEmpty() ) {
         Serial.println("checkURL will soon be unsupported, use FOTAConfig_t::manifest_url instead!!");
         useURL = checkURL;
     }
@@ -685,17 +690,13 @@ bool esp32FOTA::execHTTPcheck()
         useURL += argseparator + "id=" + getDeviceID();
     }
 
-    if ((WiFi.status() != WL_CONNECTED)) {  //Check the current connection status
-        log_i("WiFi not connected - skipping HTTP check");
-        return false;  // WiFi not connected
-    }
-
     log_i("Getting HTTP: %s", useURL.c_str());
     log_i("------");
 
     HTTPClient http;
     WiFiClientSecure client;
     http.setFollowRedirects( HTTPC_STRICT_FOLLOW_REDIRECTS );
+    http.useHTTP10(true);
 
     if( useURL.substring( 0, 5 ) == "https" ) {
         if( _cfg.unsafe ) {
@@ -750,16 +751,14 @@ bool esp32FOTA::execHTTPcheck()
     #define JSON_FW_BUFF_SIZE 2048
     DynamicJsonDocument JSONResult( JSON_FW_BUFF_SIZE );
 
-    String payload = http.getString();
-
-    DeserializationError err = deserializeJson( JSONResult, payload.c_str() );
-
-    http.end();  // We're done with HTTP - free the resources
+    DeserializationError err = deserializeJson( JSONResult, http.getStream() );
 
     if (err) {  // Check for errors in parsing, or JSON length may exceed buffer size
-        Serial.printf("JSON Parsing failed (%s, in=%d bytes, buff=%d bytes):\n%s\n", err.c_str(), payload.length(), JSON_FW_BUFF_SIZE, payload.c_str() );
+        Serial.printf("JSON Parsing failed (%s, in=%d bytes, buff=%d bytes):\n", err.c_str(), http.getSize(), JSON_FW_BUFF_SIZE );
         return false;
     }
+
+    http.end();  // We're done with HTTP - free the resources
 
     if (JSONResult.is<JsonArray>()) {
         // Although improbable given the size on JSONResult buffer, we already received an array of multiple firmware types and/or versions
@@ -791,7 +790,7 @@ String esp32FOTA::getDeviceID()
 
 
 // Force a firmware update regardless on current version
-void esp32FOTA::forceUpdate(String firmwareURL, bool validate )
+void esp32FOTA::forceUpdate(const char* firmwareURL, bool validate )
 {
     _firmwareUrl = firmwareURL;
     _cfg.check_sig = validate;
@@ -799,10 +798,14 @@ void esp32FOTA::forceUpdate(String firmwareURL, bool validate )
 }
 
 
-void esp32FOTA::forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, bool validate )
+void esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char* firmwarePath, bool validate )
 {
-    String firmwareURL = ( firmwarePort == 443 || firmwarePort == 4433 ) ? "https" : "http";
-    firmwareURL += firmwareHost + ":" + String( firmwarePort ) + firmwarePath;
+    String firmwareURL("http");
+    if ( firmwarePort == 443 || firmwarePort == 4433 ) firmwareURL += "s";
+    firmwareURL += firmwareHost;
+    firmwareURL += ":";
+    firmwareURL += firmwarePort;
+    firmwareURL += firmwarePath;
     forceUpdate( firmwareURL, validate );
 }
 

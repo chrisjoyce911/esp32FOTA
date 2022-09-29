@@ -155,8 +155,10 @@ public:
   template <typename T> void setPubKey( T* asset ) { _cfg.pub_key = (CryptoAsset*)asset; _cfg.check_sig = true; }
   template <typename T> void setRootCA( T* asset ) { _cfg.root_ca = (CryptoAsset*)asset; _cfg.unsafe = false; }
 
-  void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, bool validate );
-  void forceUpdate(String firmwareURL, bool validate );
+  void forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char* firmwarePath, bool validate );
+  void forceUpdate(const char* firmwareURL, bool validate );
+  void forceUpdate(const String &firmwareHost, uint16_t firmwarePort, const String &firmwarePath, bool validate ){ forceUpdate(firmwareHost.c_str(), firmwarePort, firmwarePath.c_str(), validate ); };
+  void forceUpdate(const String &firmwareURL, bool validate ){ forceUpdate(firmwareURL.c_str(), validate); };
   void forceUpdate(bool validate );
   bool execOTA();
   bool execOTA( int partition, bool restart_after = true );
