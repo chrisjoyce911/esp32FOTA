@@ -236,6 +236,7 @@ jobs:
         cp $full_ino_bin_path ${{env.artifact_path}}/${{ matrix.sketch }}.bin
         cp $full_ino_bin_path.img ${{env.artifact_path}}/${{ matrix.sketch }}.signed.bin
         gzip -c $full_ino_bin_path > ${{env.artifact_path}}/${{ matrix.sketch }}.bin.gz
+        pigz -9kzc $full_ino_bin_path > ${{env.artifact_path}}/${{ matrix.sketch }}.bin.z
 
 
     - name: Prepare data folder
@@ -264,6 +265,9 @@ jobs:
         # Create gzipped versions
         gzip -c ${{env.littlefs_bin_path}} > ${{env.littlefs_bin_path}}.gz
         gzip -c ${{env.spiffs_bin_path}} > ${{env.spiffs_bin_path}}.gz
+        # Create flashZ versions
+        pigz -9kzc ${{env.littlefs_bin_path}} > ${{env.littlefs_bin_path}}.z
+        pigz -9kzc ${{env.spiffs_bin_path}} > ${{env.spiffs_bin_path}}.z
 
         # Sign partition binaries
         openssl dgst -sign ${{env.privkey_path}} -keyform PEM -sha256 -out firmware.sign -binary ${{env.spiffs_bin_path}}
