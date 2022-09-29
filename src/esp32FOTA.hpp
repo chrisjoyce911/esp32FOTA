@@ -192,8 +192,8 @@ public:
 
   //template <class U> static U& getInstance() { static U updater; return updater; }
 
-  void forceUpdate(String firmwareHost, uint16_t firmwarePort, String firmwarePath, bool validate );
-  void forceUpdate(String firmwareURL, bool validate );
+  void forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char* firmwarePath, bool validate );
+  void forceUpdate(const char* firmwareURL, bool validate );
   void forceUpdate(bool validate );
 
   bool execOTA();
