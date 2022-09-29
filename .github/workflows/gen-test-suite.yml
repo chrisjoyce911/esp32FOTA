@@ -172,8 +172,8 @@ jobs:
       matrix:
 
         sketch:
-        - 1.1.nosecurity
-        - 1.2.nosecurity.gz
+        - 1.1.nosecurity.ino
+        - 1.2.nosecurity.gz.ino
         - 2.cert-in-spiffs.ino
         - 3.cert-in-progmem.ino
         - 4.cert-in-littlefs.ino
