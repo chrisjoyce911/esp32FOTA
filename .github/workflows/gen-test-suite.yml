@@ -214,14 +214,14 @@ jobs:
       with:
         repository: vortigont/esp32-flashz
         ref: main
-        path: CustomLibrary_flashZ # must contain string "Custom"
+        path: CustomLibrary # must contain string "Custom"
 
     - name: Compile ${{ matrix.sketch }}
       uses: ArminJo/arduino-test-compile@v3
       with:
         platform-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_dev_index.json
         arduino-board-fqbn: ${{inputs.board_fqbn}}:PartitionScheme=${{inputs.partition_scheme}}
-        required-libraries: ArduinoJson,CustomLibrary_flashZ
+        required-libraries: ArduinoJson,flashZ
         extra-arduino-lib-install-args: --no-deps
         extra-arduino-cli-args: "--warnings default " # see https://github.com/ArminJo/arduino-test-compile/issues/28
         sketch-names: ${{ matrix.sketch }}
