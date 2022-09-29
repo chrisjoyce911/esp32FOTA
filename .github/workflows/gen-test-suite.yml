@@ -214,7 +214,7 @@ jobs:
       with:
         repository: vortigont/esp32-flashz
         ref: main
-        path: CustomLibrary # must contain string "Custom"
+        path: CustomLibrary_flashZ # must contain string "Custom"
 
     - name: Compile ${{ matrix.sketch }}
       uses: ArminJo/arduino-test-compile@v3
