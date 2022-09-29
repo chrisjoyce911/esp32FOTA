@@ -75,14 +75,16 @@ extern "C" {
 #if __has_include(<flashz.hpp>)
   #include <flashz.hpp>
   #define F_Update FlashZ::getInstance()
-  #define F_UseZlib (_stream->peek() == ZLIB_HEADER)
+  #define F_hasZlib() true
+  #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER)
   #define F_canBegin() mode_z ? F_Update.beginz(updateSize, partition) : F_Update.begin(updateSize, partition)
   #define F_abort() if (mode_z) F_Update.abortz()
   #define F_writeStream() mode_z ? F_Update.writezStream(*stream, contentLength) : F_Update.writeStream(*stream)
 #else
   #include <Update.h>
   #define F_Update Update
-  #define F_UseZlib false
+  #define F_hasZlib() false
+  #define F_isZlibStream() false
   #define F_canBegin() F_Update.begin( updateSize, partition )
   #define F_abort() { }
   #define F_writeStream() F_Update.writeStream( *_stream );

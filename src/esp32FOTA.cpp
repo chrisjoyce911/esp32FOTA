@@ -428,7 +428,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         return false;
     }
 
-    bool mode_z = F_UseZlib;
+    bool mode_z = F_isZlibStream();
     // If using compression, the size is implicitely unknown
     updateSize = mode_z ? UPDATE_SIZE_UNKNOWN : updateSize;
 
@@ -847,7 +847,7 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
             isValidContentType = true;
         } else if( contentType == "application/gzip" ) {
             // was gzipped by the server, needs decompression
-            isValidContentType = F_UseZlib;
+            isValidContentType = F_hasZlib();
         } else if( contentType == "application/tar+gz" || contentType == "application/x-gtar" ) {
             // was packaged and compressed, may contain more than one file
             // TODO: use tarGzStreamUpdater
