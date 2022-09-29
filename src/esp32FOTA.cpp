@@ -416,7 +416,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
     } else if ( partition == U_FLASH && _firmwareUrl == "" ) {
       log_e("No app partition was specified");
       return false; // app partition is mandatory
-    } else {
+    } else if( partition != U_SPIFFS && partition != U_FLASH ) {
       log_e("Bad partition number: %i or empty URL", partition);
       return false;
     }
@@ -825,6 +825,7 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
 {
 
     const char* url = partition==U_SPIFFS ? fota->getFlashFS_URL() : fota->getFirmwareURL();
+
     Serial.printf("Opening item %s\n", url );
 
     HTTPClient *http = fota->getHTTPCLient();
@@ -886,11 +887,11 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
 
     // check updateSize and content type
     if( !updateSize || !isValidContentType ) {
-        Serial.printf("There was no content in the http response: (length: %lli, valid: %s)\n", updateSize, isValidContentType?"true":"false");
+        Serial.printf("There was no content in the http response: (length: %"PRId64", valid: %s)\n", updateSize, isValidContentType?"true":"false");
         return -1;
     }
 
-    log_d("updateSize : %i, isValidContentType : %s", updateSize, String(isValidContentType));
+    log_d("updateSize : %"PRId64", isValidContentType : %s", updateSize, String(isValidContentType));
 
     fota->setFotaStream( http->getStreamPtr() );
 
