@@ -182,7 +182,7 @@ enum FOTAStreamType_t
 
 
 // Main Class
-class esp32FOTA : public UpdateClass
+class esp32FOTA
 {
 public:
 
