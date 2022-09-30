@@ -168,6 +168,15 @@ void esp32FOTA::setupCryptoAssets()
 }
 
 
+
+void esp32FOTA::handle()
+{
+  if ( execHTTPcheck() ) {
+      execOTA();
+  }
+}
+
+
 // SHA-Verify the OTA partition after it's been written
 // https://techtutorialsx.com/2018/05/10/esp32-arduino-mbed-tls-using-the-sha-256-algorithm/
 // https://github.com/ARMmbed/mbedtls/blob/development/programs/pkey/rsa_verify.c
@@ -283,6 +292,8 @@ bool esp32FOTA::validate_sig( const esp_partition_t* partition, unsigned char *s
 }
 
 
+
+
 bool esp32FOTA::setupHTTP( const char* url )
 {
     const char* rootcastr = nullptr;
@@ -324,8 +335,8 @@ bool esp32FOTA::setupHTTP( const char* url )
     }
 
     // TODO: add more watched headers e.g. Authorization: Signature keyId="rsa-key-1",algorithm="rsa-sha256",signature="Base64(RSA-SHA256(signing string))"
-    const char* get_headers[] = { "Content-Length", "Content-type" };
-    _http.collectHeaders( get_headers, 2 );
+    const char* get_headers[] = { "Content-Length", "Content-type", "Accept-Ranges" };
+    _http.collectHeaders( get_headers, sizeof(get_headers)/sizeof(const char*) );
 
     return true;
 }
@@ -405,8 +416,6 @@ bool esp32FOTA::execOTA()
 }
 
 
-
-
 bool esp32FOTA::execOTA( int partition, bool restart_after )
 {
     // health checks
@@ -421,6 +430,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
       return false;
     }
 
+    // call getHTTPStream
     int64_t updateSize = getStream( this, partition );
 
     if( updateSize<=0 || _stream == nullptr ) {
@@ -429,11 +439,10 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
     }
 
     mode_z = F_isZlibStream();
+
     log_d("compression: %s", mode_z ? "enabled" : "disabled" );
     // If using compression, the size is implicitely unknown
     size_t fwsize = mode_z ? UPDATE_SIZE_UNKNOWN : updateSize;       // fw_size is unknown if we have a compressed image
-
-    //updateSize = mode_z ? UPDATE_SIZE_UNKNOWN : updateSize;
 
     if( _cfg.check_sig ) {
       if( mode_z ) {
@@ -617,6 +626,7 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
     bool has_url        = doc["url"].is<const char*>();
     bool has_firmware   = doc["bin"].is<const char*>();
     bool has_hostname   = doc["host"].is<const char*>();
+    //bool has_signature  = doc["sig"].is<const char*>();
     bool has_port       = doc["port"].is<uint16_t>();
     uint16_t portnum    = doc["port"].as<uint16_t>();
     bool has_tls        = has_port ? (portnum  == 443 || portnum  == 4433) : false;
@@ -835,32 +845,25 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
 
     Serial.printf("Opening item %s\n", url );
 
-    //HTTPClient *http = fota->getHTTPCLient();
-
     if(! fota->setupHTTP( url ) ) { // certs
         log_e("unable to setup http, aborting!");
         return -1;
     }
 
     int64_t updateSize = 0;
-    bool isValidContentType = false;
     int httpCode = fota->getHTTPCLient()->GET();
     String contentType;
 
     fota->setFotaStream( nullptr );
 
     if( httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY ) {
-        //updateSize = fota->getHTTPCLient()->header( "Content-Length" ).toInt();
         updateSize = fota->getHTTPCLient()->getSize();
         contentType = fota->getHTTPCLient()->header( "Content-type" );
-        if( contentType == "application/octet-stream" ) {
-            isValidContentType = true;
-        } else if( contentType == "application/gzip" || contentType == "application/x-gzip" || contentType == "application/x-compress" ) {
-            // was gzipped by the server, needs decompression
-            isValidContentType = fota->canUnzip();
-        } else if( contentType == "application/tar+gz" || contentType == "application/x-gtar" ) {
-            // was packaged and compressed, may contain more than one file
-            // TODO: use tarGzStreamUpdater
+        String acceptRange = fota->getHTTPCLient()->header( "Accept-Ranges" );
+        if( !acceptRange.isEmpty() ) {
+            Serial.printf("This server supports resume! Accept-Ranges: %s\n", acceptRange.c_str() );
+        } else {
+            Serial.println("This server does not support resume!" );
         }
     } else {
         switch( httpCode ) {
@@ -895,12 +898,12 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
     // TODO: Set updateSize to UPDATE_SIZE_UNKNOWN when content type is valid.
 
     // check updateSize and content type
-    if( !updateSize || !isValidContentType ) {
-        Serial.printf("There was no content in the http response: (length: %" PRId64 ", valid: %s, contentType: %s)\n", updateSize, isValidContentType?"true":"false", contentType.c_str());
+    if( updateSize<=0 ) {
+        Serial.printf("There was no content in the http response: (length: %" PRId64 ", contentType: %s)\n", updateSize, contentType.c_str());
         return -1;
     }
 
-    log_d("updateSize : %" PRId64 ", isValidContentType : %s, contentType: %s", updateSize, String(isValidContentType).c_str(), contentType.c_str());
+    log_d("updateSize : %" PRId64 ", contentType: %s", updateSize, contentType.c_str());
 
     fota->setFotaStream( fota->getHTTPCLient()->getStreamPtr() );
 

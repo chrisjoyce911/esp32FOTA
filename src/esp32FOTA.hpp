@@ -72,16 +72,29 @@ extern "C" {
 #endif
 
 
+
+
 #if __has_include(<flashz.hpp>)
   #pragma message "Using FlashZ as Update agent"
   #include <flashz.hpp>
   #define F_Update FlashZ::getInstance()
   #define F_hasZlib() true
-  #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER)
+  #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER && ((partition == U_SPIFFS && _flashFileSystemUrl.startsWith("zz")) || (partition == U_FLASH && _firmwareUrl.startsWith("zz"))))
   #define F_canBegin() (mode_z ? F_Update.beginz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(fwsize, partition))
   #define F_UpdateEnd() (mode_z ? F_Update.endz() : F_Update.end())
   #define F_abort() if (mode_z) F_Update.abortz(); else F_Update.abort()
   #define F_writeStream() (mode_z ? F_Update.writezStream(*_stream, updateSize) : F_Update.writeStream(*_stream))
+  #define F_isGzStream() false
+#elif __has_include("ESP32-targz.h")
+  #pragma message "Using GzUpdateClass as Update agent"
+  #include <ESP32-targz.h>
+  #define F_Update GzUpdateClass::getInstance()
+  #define F_hasZlib() true
+  #define F_isZlibStream() (_stream->peek() == 0x1f && ((partition == U_SPIFFS && _flashFileSystemUrl.startsWith("gz")) || (partition == U_FLASH && _firmwareUrl.startsWith("gz"))) )
+  #define F_canBegin() (mode_z ? F_Update.begingz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(fwsize, partition))
+  #define F_UpdateEnd() (mode_z ? F_Update.endgz() : F_Update.end())
+  #define F_abort() if (mode_z) F_Update.abortgz(); else F_Update.abort()
+  #define F_writeStream() (mode_z ? F_Update.writeGzStream(*_stream, updateSize) : F_Update.writeStream(*_stream))
 #else
   #include <Update.h>
   #define F_Update Update
@@ -147,12 +160,24 @@ private:
 };
 
 
+// signature validation available methods
+/*
+enum SigType_t
+{
+  FOTA_SIG_PREPEND,       // signature is contatenated with file (default)
+  FOTA_SIG_FILE,          // signature is in a separate file
+  FOTA_SIG_JSON_PROPERTY, // signature is a JSON property
+  FOTA_SIG_HTTP_HEADER    // signature is a HTTP header
+};
+*/
+
 struct FOTAConfig_t
 {
   const char*  name { nullptr };
   const char*  manifest_url { nullptr };
   SemverClass  sem {0};
   bool         check_sig { false };
+  //SigType_t    type_sig {FOTA_SIG_PREPEND};
   bool         unsafe { false };
   bool         use_device_id { false };
   CryptoAsset* root_ca { nullptr };
@@ -195,6 +220,8 @@ public:
   void forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char* firmwarePath, bool validate );
   void forceUpdate(const char* firmwareURL, bool validate );
   void forceUpdate(bool validate );
+
+  void handle();
 
   bool execOTA();
   bool execOTA( int partition, bool restart_after = true );
@@ -255,7 +282,7 @@ public:
   const char*       getFlashFS_URL()   { return _flashFileSystemUrl.c_str(); }
   const char*       getPath(int part)  { return part==U_SPIFFS ? getFlashFS_URL() : getFirmwareURL(); }
 
-  bool              canUnzip()         { return mode_z; }
+  bool              zlibSupported()         { return mode_z; }
 
   int               getPayloadVersion();
   void              getPayloadVersion(char * version_string);
@@ -272,10 +299,6 @@ public:
   bool setupHTTP( const char* url );
   void setFotaStream( Stream* stream ) { _stream = stream; }
 
-
-  //friend class FlashZ;
-
-
   [[deprecated("Use setManifestURL( String ) or cfg.manifest_url with setConfig( FOTAConfig_t )")]] String checkURL = "";
   [[deprecated("Use cfg.use_device_id with setConfig( FOTAConfig_t )")]] bool useDeviceID = false;
 
@@ -287,7 +310,7 @@ private:
   Stream *_stream;
   fs::File _file;
 
-  bool mode_z = F_hasZlib(); // F_isZlibStream();
+  bool mode_z  = F_hasZlib();
 
   FOTAStreamType_t _stream_type = FOTA_HTTP_STREAM; // defaults to HTTP
 
