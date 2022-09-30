@@ -79,6 +79,7 @@ on:
         - error
         - warning
         - info
+        - debug
         - verbose
         default: 'none'
 
