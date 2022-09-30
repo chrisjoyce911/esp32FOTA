@@ -221,8 +221,8 @@ jobs:
       uses: actions/checkout@v2
       with:
         repository: tobozo/ESP32-targz
-        ref: main
-        path: CustomESP32TarGz # must contain string "Custom"
+        ref: master
+        path: CustomESP32-targz # must contain string "Custom"
 
 
     - name: Compile ${{ matrix.sketch }}
