@@ -441,22 +441,21 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
     mode_z = F_isZlibStream();
 
     log_d("compression: %s", mode_z ? "enabled" : "disabled" );
-    // If using compression, the size is implicitely unknown
-    size_t fwsize = mode_z ? UPDATE_SIZE_UNKNOWN : updateSize;       // fw_size is unknown if we have a compressed image
 
     if( _cfg.check_sig ) {
       if( mode_z ) {
         Serial.println("[ERROR] Compressed && signed image is not (yet) supported");
         return false;
       }
-      if( updateSize != UPDATE_SIZE_UNKNOWN ) {
-        if( updateSize <= FW_SIGNATURE_LENGTH ) {
+      if( updateSize == UPDATE_SIZE_UNKNOWN || updateSize <= FW_SIGNATURE_LENGTH ) {
           Serial.println("[ERROR] Malformed signature+fw combo");
           return false;
-        }
-        updateSize -= FW_SIGNATURE_LENGTH;
       }
+      updateSize -= FW_SIGNATURE_LENGTH;
     }
+
+    // If using compression, the size is implicitely unknown
+    size_t fwsize = mode_z ? UPDATE_SIZE_UNKNOWN : updateSize;       // fw_size is unknown if we have a compressed image
 
     bool canBegin = F_canBegin();
 
