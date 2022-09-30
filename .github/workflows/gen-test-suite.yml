@@ -74,6 +74,7 @@ on:
         description: 'Core Debug Level'
         required: true
         type: choice
+        options:
         - none
         - error
         - warning
