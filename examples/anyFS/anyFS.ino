@@ -13,7 +13,10 @@
 #include <LittleFS.h>
 //#include <PSRamFS.h>
 
+//#include <flashz.hpp> // optional esp32-flashz for zlib compressed firmwares
+//#include <ESP32-targz.h> // optional ESP32-targz for gzip compressed firmwares
 #include <esp32fota.h> // fota pulls WiFi library
+
 
 
 // esp32fota settings
@@ -36,11 +39,14 @@ CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &LittleFS );
 // CryptoMemAsset *MyRSAKey = new CryptoMemAsset("RSA Public Key",     rsa_key_pub, strlen(rsa_key_pub)+1 );
 
 
-esp32FOTA FOTA;
-//esp32FOTA esp32FOTA( String(firmware_name), firmware_version, check_signature, disable_security );
+esp32FOTA FOTA; // empty constructor
 
 
-//esp32FOTA esp32FOTA("esp32-fota-http", 1, false );
+bool WiFiConnected()
+{
+    return (WiFi.status() == WL_CONNECTED);
+}
+
 
 void setup_wifi()
 {
@@ -50,7 +56,7 @@ void setup_wifi()
 
   WiFi.begin(); // no WiFi creds in this demo :-)
 
-  while (WiFi.status() != WL_CONNECTED)
+  while ( !WiFiConnected() )
   {
     delay(500);
     Serial.print(".");
@@ -85,6 +91,10 @@ void setup()
 
     FOTA.setConfig( cfg );
   }
+
+
+  // FOTA.setStatusChecker( WiFiConnected );
+
 
   // /!\ FOTA.checkURL is deprecated, use setManifestURL( String ) instead
   //FOTA.setManifestURL( FOTA_URL );

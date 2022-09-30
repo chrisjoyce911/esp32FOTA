@@ -1,5 +1,10 @@
 [![PlatformIO](https://github.com/chrisjoyce911/esp32FOTA/workflows/PlatformIO/badge.svg)](https://github.com/chrisjoyce911/esp32FOTA/actions/)
 
+[![arduino-library-badge](https://www.ardu-badge.com/badge/esp32FOTA.svg?)](https://www.ardu-badge.com/esp32FOTA)
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/chrisjoyce911/library/esp32FOTA.svg)](https://registry.platformio.org/libraries/chrisjoyce911/esp32FOTA)
+
+
+
 # esp32FOTA library for Arduino
 
 ## Purpose
@@ -90,10 +95,13 @@ A single JSON file can also contain several versions of a single firmware type:
    {
       "type":"esp32-fota-http",
       "version":"0.0.3",
-      "url":"http://192.168.0.100/fota/esp32-fota-0.0.3.bin"
+      "url":"http://192.168.0.100/fota/esp32-fota-0.0.3.bin",
+      "spiffs":"http://192.168.0.100/fota/esp32-fota-0.0.3.spiffs.bin"
    }
 ]
 ```
+
+
 
 
 #### Filesystem image (spiffs/littlefs)
@@ -168,10 +176,12 @@ void setup_wifi()
 
 void loop()
 {
-  bool updatedNeeded = esp32FOTA.execHTTPcheck();
-  if (updatedNeeded) {
-    esp32FOTA.execOTA();
-  }
+  esp32FOTA.handle();
+  // or ...
+  // bool updatedNeeded = esp32FOTA.execHTTPcheck();
+  // if (updatedNeeded) {
+  //   esp32FOTA.execOTA();
+  // }
   delay(2000);
 }
 ```
@@ -209,14 +219,65 @@ void setup()
 
 void loop()
 {
-  bool updatedNeeded = esp32FOTA.execHTTPcheck();
-  if (updatedNeeded) {
-    esp32FOTA.execOTA();
-  }
+  esp32FOTA.handle();
+  // or ...
+  // bool updatedNeeded = esp32FOTA.execHTTPcheck();
+  // if (updatedNeeded) {
+  //   esp32FOTA.execOTA();
+  // }
   delay(2000);
 }
 
 ```
+
+
+### Zlib/gzip support
+
+⚠️ This feature cannot be used with signature check.
+
+
+For firmwares compressed with `pigz` utility (see , file extension must be `.zz`:
+
+```cpp
+#include <flashz.hpp> // http://github.com/vortigont/esp32-flashz
+#include <esp32FOTA.hpp>
+```
+
+```bash
+$ pigz -9kzc esp32-fota-http-2.bin > esp32-fota-http-2.bin.zz
+```
+
+```json
+{
+    "type": "esp32-fota-http",
+    "version": "2.5.1",
+    "url": "http://192.168.0.100/fota/esp32-fota-http-2.bin.zz"
+}
+```
+
+
+For firmwares compressed with `gzip` utility, file extension must be `.gz`
+
+```cpp
+#include <ESP32-targz.h> // http://github.com/tobozo/ESP32-targz
+#include <esp32FOTA.hpp>
+```
+
+```bash
+$ gzip -c esp32-fota-http-2.bin > esp32-fota-http-2.bin.gz
+```
+
+```json
+{
+    "type": "esp32-fota-http",
+    "version": "2.5.1",
+    "url": "http://192.168.0.100/fota/esp32-fota-http-2.bin.gz"
+}
+```
+
+
+
+
 
 
 ### Root Certificates
@@ -428,11 +489,14 @@ On the next update-check the ESP32 will download the `firmware.img` extract the 
 [#92]: https://github.com/chrisjoyce911/esp32FOTA/pull/92
 
 
-
-
 ### Libraries
 
-This relies on [semver.c by h2non](https://github.com/h2non/semver.c) for semantic versioning support. semver.c is licensed under [MIT](https://github.com/h2non/semver.c/blob/master/LICENSE).
+This library relies on [semver.c by h2non](https://github.com/h2non/semver.c) for semantic versioning support. semver.c is licensed under [MIT](https://github.com/h2non/semver.c/blob/master/LICENSE).
+
+Optional dependencies (zlib/gzip support):
+* [esp32-flashz](https://github.com/vortigont/esp32-flashz)
+* [esp32-targz](https://github.com/tobozo/ESP32-targz)
+
 
 ### Thanks to
 
@@ -441,4 +505,5 @@ This relies on [semver.c by h2non](https://github.com/h2non/semver.c) for semant
 * @tuan-karma
 * @hpsaturn
 * @tobozo
+* @vortigont
 
