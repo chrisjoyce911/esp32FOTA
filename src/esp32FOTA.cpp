@@ -618,7 +618,6 @@ bool esp32FOTA::checkJSONManifest(JsonVariant doc)
         _payload_sem = SemverClass(0);
     }
 
-    //debugSemVer("Payload firmware version", &_payloadVersion );
     debugSemVer("Payload firmware version", _payload_sem.ver() );
 
     // Memoize some values to help with the decision tree
@@ -710,7 +709,6 @@ bool esp32FOTA::execHTTPcheck()
     log_i("Getting HTTP: %s", useURL.c_str());
     log_i("------");
 
-    //_http.useHTTP10(true);
     if(! setupHTTP( useURL.c_str() ) ) {
       log_e("Unable to setup http, aborting!");
       return false;

@@ -84,7 +84,6 @@ extern "C" {
   #define F_UpdateEnd() (mode_z ? F_Update.endz() : F_Update.end())
   #define F_abort() if (mode_z) F_Update.abortz(); else F_Update.abort()
   #define F_writeStream() (mode_z ? F_Update.writezStream(*_stream, updateSize) : F_Update.writeStream(*_stream))
-  #define F_isGzStream() false
 #elif __has_include("ESP32-targz.h")
   #pragma message "Using GzUpdateClass as Update agent"
   #include <ESP32-targz.h>
@@ -160,24 +159,12 @@ private:
 };
 
 
-// signature validation available methods
-/*
-enum SigType_t
-{
-  FOTA_SIG_PREPEND,       // signature is contatenated with file (default)
-  FOTA_SIG_FILE,          // signature is in a separate file
-  FOTA_SIG_JSON_PROPERTY, // signature is a JSON property
-  FOTA_SIG_HTTP_HEADER    // signature is a HTTP header
-};
-*/
-
 struct FOTAConfig_t
 {
   const char*  name { nullptr };
   const char*  manifest_url { nullptr };
   SemverClass  sem {0};
   bool         check_sig { false };
-  //SigType_t    type_sig {FOTA_SIG_PREPEND};
   bool         unsafe { false };
   bool         use_device_id { false };
   CryptoAsset* root_ca { nullptr };
@@ -210,12 +197,8 @@ public:
   esp32FOTA(const String &firwmareType, const String &firmwareSemanticVersion, bool validate = false, bool allow_insecure_https = false )
     : esp32FOTA(firwmareType.c_str(), firmwareSemanticVersion.c_str(), validate, allow_insecure_https){};
 
-
-
   template <typename T> void setPubKey( T* asset ) { _cfg.pub_key = (CryptoAsset*)asset; _cfg.check_sig = true; }
   template <typename T> void setRootCA( T* asset ) { _cfg.root_ca = (CryptoAsset*)asset; _cfg.unsafe = false; }
-
-  //template <class U> static U& getInstance() { static U updater; return updater; }
 
   void forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char* firmwarePath, bool validate );
   void forceUpdate(const char* firmwareURL, bool validate );
