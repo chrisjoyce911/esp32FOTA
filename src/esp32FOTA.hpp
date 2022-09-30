@@ -79,7 +79,7 @@ extern "C" {
   #include <flashz.hpp>
   #define F_Update FlashZ::getInstance()
   #define F_hasZlib() true
-  #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER && ((partition == U_SPIFFS && _flashFileSystemUrl.startsWith("zz")) || (partition == U_FLASH && _firmwareUrl.startsWith("zz"))))
+  #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER && ((partition == U_SPIFFS && _flashFileSystemUrl.indexOf("zz")>-1) || (partition == U_FLASH && _firmwareUrl.indexOf("zz")>-1)))
   #define F_canBegin() (mode_z ? F_Update.beginz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(fwsize, partition))
   #define F_UpdateEnd() (mode_z ? F_Update.endz() : F_Update.end())
   #define F_abort() if (mode_z) F_Update.abortz(); else F_Update.abort()
@@ -90,7 +90,7 @@ extern "C" {
   #include <ESP32-targz.h>
   #define F_Update GzUpdateClass::getInstance()
   #define F_hasZlib() true
-  #define F_isZlibStream() (_stream->peek() == 0x1f && ((partition == U_SPIFFS && _flashFileSystemUrl.startsWith("gz")) || (partition == U_FLASH && _firmwareUrl.startsWith("gz"))) )
+  #define F_isZlibStream() (_stream->peek() == 0x1f && ((partition == U_SPIFFS && _flashFileSystemUrl.indexOf("gz")>-1) || (partition == U_FLASH && _firmwareUrl.indexOf("gz")>-1)) )
   #define F_canBegin() (mode_z ? F_Update.begingz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(fwsize, partition))
   #define F_UpdateEnd() (mode_z ? F_Update.endgz() : F_Update.end())
   #define F_abort() if (mode_z) F_Update.abortgz(); else F_Update.abort()
