@@ -13,8 +13,8 @@
 #include <LittleFS.h>
 //#include <PSRamFS.h>
 
-#include <flashz.hpp> // optional esp32-flashz for gzipped firmwares
-
+//#include <flashz.hpp> // optional esp32-flashz for zlib compressed firmwares
+//#include <ESP32-targz.h> // optional ESP32-targz for gzip compressed firmwares
 #include <esp32fota.h> // fota pulls WiFi library
 
 

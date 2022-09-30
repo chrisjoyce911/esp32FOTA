@@ -12,7 +12,6 @@
 
 */
 
-//#include <flashz.hpp> // optional esp32-flashz for zlib compressed firmwares
 #include <ESP32-targz.h> // optional ESP32-targz for gzip compressed firmwares
 #include <esp32FOTA.hpp>
 
@@ -32,7 +31,7 @@ const char* description     = "Basic example with no security and no filesystem"
 
 const char* fota_debug_fmt = R"DBG_FMT(
 
-***************** STAGE %i *****************
+***************** STAGE %s *****************
 
   Description      : %s
   Firmware type    : %s
@@ -78,7 +77,7 @@ void setup()
   Serial.begin(115200);
 
   Serial.printf( fota_debug_fmt,
-    firmware_version_major,
+    "1.1",
     description,
     firmware_name,
     firmware_version_major,

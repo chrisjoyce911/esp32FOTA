@@ -30,7 +30,7 @@ const char* description     = "Basic *gzipped* example with no security and no f
 
 const char* fota_debug_fmt = R"DBG_FMT(
 
-***************** STAGE %i *****************
+***************** STAGE %s *****************
 
   Description      : %s
   Firmware type    : %s
@@ -76,7 +76,7 @@ void setup()
   Serial.begin(115200);
 
   Serial.printf( fota_debug_fmt,
-    firmware_version_major,
+    "1.3",
     description,
     firmware_name,
     firmware_version_major,

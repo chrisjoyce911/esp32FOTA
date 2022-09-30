@@ -25,13 +25,14 @@ const char* description     = "SPIFFS example with security";
 
 const char* fota_debug_fmt = R"DBG_FMT(
 
-***************** STAGE %i *****************
+***************** STAGE %s *****************
 
   Description      : %s
   Firmware type    : %s
-  Firmware version : %i
+  Firmware version : %i.%i.%i
   Signature check  : %s
   TLS Cert check   : %s
+  Compression      : %s
 
 ********************************************
 
@@ -74,7 +75,18 @@ void setup_wifi()
 void setup()
 {
   Serial.begin(115200);
-  Serial.printf( fota_debug_fmt, firmware_version_major, description, firmware_name, firmware_version_major, check_signature?"Enabled":"Disabled", disable_security?"Disabled":"Enabled" );
+
+  Serial.printf( fota_debug_fmt,
+    "2",
+    description,
+    firmware_name,
+    firmware_version_major,
+    firmware_version_minor,
+    firmware_version_patch,
+    check_signature  ?"Enabled":"Disabled",
+    disable_security ?"Disabled":"Enabled",
+    FOTA.zlibSupported() ?"Enabled":"Disabled"
+  );
 
   // Provide filesystem with root_ca.pem to validate server certificate
   if( ! SPIFFS.begin( false ) ) {
