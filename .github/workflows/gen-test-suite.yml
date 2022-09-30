@@ -79,6 +79,7 @@ on:
         - warning
         - info
         - verbose
+        default: 'none'
 
 jobs:
 
