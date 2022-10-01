@@ -14,16 +14,16 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 ## Features
 
 - [x] Zlib or gzip compressed firmware support
+- [x] SPIFFS/LittleFS partition Update [#25], [#47], [#60], [#92]  (thanks to all participants)
+- [x] Any fs::FS support (SPIFFS/LITTLEFS/SD) for cert/signature storage [#79], [#74], [#91], [#92] (thanks to all participants)
+- [x] Seamless http/https
 - [x] Web update (requires web server)
 - [x] Batch firmware sync
 - [x] Force firmware update [#8]
 - [x] https support [#26] ( Thanks to @fbambusi )
 - [x] Signature check of downloaded firmware-image [#65]
-- [x] https or https
 - [x] Signature verification
 - [x] Semantic versioning support
-- [x] Any fs::FS support (SPIFFS/LITTLEFS/SD) for cert/signature storage [#79], [#74], [#91], [#92] (thanks to all participants)
-- [x] SPIFFS/LittleFS partition Update [#25], [#47], [#60], [#92]  (thanks to all participants)
 - [ ] Checking for update via bin headers [#15]
 
 ## How it works
