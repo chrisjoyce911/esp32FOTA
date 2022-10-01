@@ -13,6 +13,7 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 
 ## Features
 
+- [x] Zlib or gzip compressed firmware support
 - [x] Web update (requires web server)
 - [x] Batch firmware sync
 - [x] Force firmware update [#8]
@@ -34,7 +35,7 @@ There are a few things that need to be in place for an update to work.
 - A webserver with the firmware information in a JSON file
 - Firmware version
 - Firmware type
-- Firmware bin
+- Firmware bin (can optionnally be compressed with zlib or gzip)
 - For https or signature check: SPIFFS with root_ca.pem (https) and rsa_key.pem (signature check)
 
 You can supply http or https URLs. If you are using https, you need the root_ca.pem in your SPIFFS partition. For the actual firmware it will use https when you define port 443 or 4433. Otherwise it will use plain http.
@@ -190,8 +191,8 @@ void loop()
 Late init is possible using `FOTAConfig_t`, allowing more complex configurations:
 
 ```cpp
+#include <SPIFFS.h> // include filesystem *before* esp32FOTA librart
 #include <esp32FOTA.hpp>
-#include <SPIFFS.h>
 
 esp32FOTA FOTA;
 
