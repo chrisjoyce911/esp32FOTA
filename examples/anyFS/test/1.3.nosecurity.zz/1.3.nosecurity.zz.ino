@@ -29,25 +29,6 @@ const bool disable_security = true;
 const char* title           = "1.3";
 const char* description     = "Basic *gzipped* example with no security and no filesystem";
 
-const char* fota_debug_fmt = R"DBG_FMT(
-
-***************** STAGE %s *****************
-
-  Description      : %s
-  Firmware type    : %s
-  Firmware version : %i.%i.%i
-  Signature check  : %s
-  TLS Cert check   : %s
-  Compression      : %s
-
-********************************************
-
-)DBG_FMT";
-
-
-// esp32fota esp32fota("<Type of Firmware for this device>", <this version>, <validate signature>, <allow insecure TLS>);
-// esp32FOTA esp32FOTA( String(firmware_name), firmware_version, check_signature, disable_security );
-
 
 esp32FOTA FOTA;
 

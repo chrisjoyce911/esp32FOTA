@@ -24,26 +24,9 @@ const bool disable_security = false;
 const char* title           = "2";
 const char* description     = "SPIFFS example with security";
 
-const char* fota_debug_fmt = R"DBG_FMT(
 
-***************** STAGE %s *****************
-
-  Description      : %s
-  Firmware type    : %s
-  Firmware version : %i.%i.%i
-  Signature check  : %s
-  TLS Cert check   : %s
-  Compression      : %s
-
-********************************************
-
-)DBG_FMT";
-
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>, <allow insecure TLS>);
-// esp32FOTA esp32FOTA( String(firmware_name), firmware_version, check_signature, disable_security );
-
-// for manual configuration
 esp32FOTA FOTA;
+
 
 // CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &LittleFS );
 CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &SPIFFS );
