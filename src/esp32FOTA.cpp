@@ -438,6 +438,18 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         return false;
     }
 
+    // some network streams (e.g. Ethernet) can be laggy and need to 'breathe'
+    if( ! _stream->available() ) {
+        uint32_t timeout = millis() + _stream_timeout;
+        while( ! _stream->available() ) {
+            if( millis()>timeout ) {
+                log_e("Stream timed out");
+                return false;
+            }
+            vTaskDelay(1);
+        }
+    }
+
     mode_z = F_isZlibStream();
 
     log_d("compression: %s", mode_z ? "enabled" : "disabled" );
