@@ -13,19 +13,20 @@
 */
 
 #include <esp32FOTA.hpp>
+#include <debug/test_fota_common.h>
 
 // esp32fota settings
 int firmware_version_major  = 1;
 int firmware_version_minor  = 3;
 int firmware_version_patch  = 0;
 
-#if !defined FOTA_URL
-  #define FOTA_URL "http://server/fota/fota.json"
-#endif
+//  #define FOTA_URL "http://server/fota/fota.json"
+
 const char* firmware_name   = "esp32-fota-http";
 const bool check_signature  = false;
 const bool disable_security = true;
 // for debug only
+const char* title           = "1.3";
 const char* description     = "Basic *gzipped* example with no security and no filesystem";
 
 const char* fota_debug_fmt = R"DBG_FMT(
@@ -75,17 +76,7 @@ void setup()
 {
   Serial.begin(115200);
 
-  Serial.printf( fota_debug_fmt,
-    "1.3",
-    description,
-    firmware_name,
-    firmware_version_major,
-    firmware_version_minor,
-    firmware_version_patch,
-    check_signature  ?"Enabled":"Disabled",
-    disable_security ?"Disabled":"Enabled",
-    FOTA.zlibSupported() ?"Enabled":"Disabled"
-  );
+  PrintFOTAInfo();
 
   {
     auto cfg = FOTA.getConfig();

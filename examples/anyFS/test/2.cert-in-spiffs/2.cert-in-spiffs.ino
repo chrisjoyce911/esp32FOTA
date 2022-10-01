@@ -8,19 +8,20 @@
 
 #include <SPIFFS.h> // include filesystem **before** esp32fota !!
 #include <esp32fota.h>
+#include <debug/test_fota_common.h>
 
 // esp32fota settings
 int firmware_version_major  = 2;
 int firmware_version_minor  = 0;
 int firmware_version_patch  = 0;
 
-#if !defined FOTA_URL
-  #define FOTA_URL "http://server/fota/fota.json"
-#endif
+//  #define FOTA_URL "http://server/fota/fota.json"
+
 const char* firmware_name   = "esp32-fota-http";
 const bool check_signature  = false;
 const bool disable_security = false;
 // for debug only
+const char* title           = "2";
 const char* description     = "SPIFFS example with security";
 
 const char* fota_debug_fmt = R"DBG_FMT(
@@ -76,17 +77,7 @@ void setup()
 {
   Serial.begin(115200);
 
-  Serial.printf( fota_debug_fmt,
-    "2",
-    description,
-    firmware_name,
-    firmware_version_major,
-    firmware_version_minor,
-    firmware_version_patch,
-    check_signature  ?"Enabled":"Disabled",
-    disable_security ?"Disabled":"Enabled",
-    FOTA.zlibSupported() ?"Enabled":"Disabled"
-  );
+  PrintFOTAInfo();
 
   // Provide filesystem with root_ca.pem to validate server certificate
   if( ! SPIFFS.begin( false ) ) {
