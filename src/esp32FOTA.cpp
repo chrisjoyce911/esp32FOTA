@@ -299,7 +299,7 @@ bool esp32FOTA::setupHTTP( const char* url )
     const char* rootcastr = nullptr;
     _http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
-    log_i("Connecting to: %s\r\n", url );
+    log_i("Connecting to: %s", url );
     if( String(url).startsWith("https") ) {
         if (!_cfg.unsafe) {
             if( !_cfg.root_ca ) {
@@ -719,7 +719,6 @@ bool esp32FOTA::execHTTPcheck()
     }
 
     log_i("Getting HTTP: %s", useURL.c_str());
-    log_i("------");
 
     if(! setupHTTP( useURL.c_str() ) ) {
       log_e("Unable to setup http, aborting!");
@@ -869,8 +868,8 @@ static int64_t getHTTPStream( esp32FOTA* fota, int partition )
         updateSize = fota->getHTTPCLient()->getSize();
         contentType = fota->getHTTPCLient()->header( "Content-type" );
         String acceptRange = fota->getHTTPCLient()->header( "Accept-Ranges" );
-        if( !acceptRange.isEmpty() ) {
-            Serial.printf("This server supports resume! Accept-Ranges: %s\n", acceptRange.c_str() );
+        if( acceptRange == "bytes" ) {
+            Serial.println("This server supports resume!" );
         } else {
             Serial.println("This server does not support resume!" );
         }

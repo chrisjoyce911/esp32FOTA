@@ -111,11 +111,12 @@ jobs:
     # Avoid multiline: flatten JSON
     - id: set-env
       run: |
-        content='${{ toJson(env) }}'
-        content="${content//'%'/'%25'}"
-        content="${content//$'\n'/'%0A'}"
-        content="${content//$'\r'/'%0D'}"
-        echo "::set-output name=env::$content"
+        content='${{ toJson(env) }}'    # convert env vars to json
+        content="${content//'%'/'%25'}" # escape percent entities
+        content="${content//$'\n'/''}"  # remove lf
+        content="${content//$'\r'/''}"  # remove cr
+        echo "env=${content}" >> $GITHUB_OUTPUT
+
 
 
   gen_keys:
@@ -165,7 +166,7 @@ jobs:
         cat $pub_key_h_path
 
     - name: Upload RootCA/PubKey as artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: Certs
         path: |
@@ -197,7 +198,7 @@ jobs:
     steps:
 
     - name: Checkout Current
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
@@ -223,14 +224,14 @@ jobs:
         cp ${{env.cert_path}}/pub_key.h $pub_key_c_path
 
     - name: Checkout esp32-flashz
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: vortigont/esp32-flashz
         ref: main
         path: CustomflashZ # must contain string "Custom"
 
     - name: Checkout ESP32-targz
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: tobozo/ESP32-targz
         ref: master
@@ -297,7 +298,7 @@ jobs:
         cat firmware.sign ${{env.littlefs_bin_path}} > ${{env.littlefs_signed_bin_path}}
 
     - name: Update TestSuite artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: TestSuite
         path: |
@@ -315,7 +316,7 @@ jobs:
     steps:
 
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
@@ -334,14 +335,14 @@ jobs:
         # rm ${{env.privkey_path}}
 
     - name: Update TestSuite artifacts with new JSON Manifest
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: TestSuite
         path: |
           ${{env.artifact_path}}/**
 
     - name: Delete Cert/Signature/Privkey artifact
-      uses: geekyeggo/delete-artifact@v1
+      uses: geekyeggo/delete-artifact@v2
       with:
         name: Certs
 
