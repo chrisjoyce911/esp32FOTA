@@ -23,13 +23,14 @@ const char *password = "";
 
 // esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
 esp32FOTA FOTA("esp32-fota-http", 1, false);
+const char* manifest_url = "http://server/fota/fota.json";
 
 void setup()
 {
   Serial.begin(115200);
   setup_wifi();
 
-  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
+  esp32FOTA.setManifestURL( manifest_url );
   esp32FOTA.useDeviceId( true );
 }
 

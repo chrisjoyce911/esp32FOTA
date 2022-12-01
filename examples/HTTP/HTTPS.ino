@@ -30,6 +30,7 @@ const char *password = "";
 
 // esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
 esp32FOTA esp32FOTA("esp32-fota-http", 1, false);
+const char* manifest_url = "http://server/fota/fota.json";
 
 void setup_wifi()
 {
@@ -54,7 +55,7 @@ void setup()
   // Provide spiffs with root_ca.pem to validate server certificate
   SPIFFS.begin(true);
 
-  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
+  esp32FOTA.setManifestURL( manifest_url );
   Serial.begin(115200);
   setup_wifi();
 }

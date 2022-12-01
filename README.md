@@ -13,16 +13,17 @@ A simple library to add support for Over-The-Air (OTA) updates to your project.
 
 ## Features
 
+- [x] Zlib or gzip compressed firmware support
+- [x] SPIFFS/LittleFS partition Update [#25], [#47], [#60], [#92]  (thanks to all participants)
+- [x] Any fs::FS support (SPIFFS/LITTLEFS/SD) for cert/signature storage [#79], [#74], [#91], [#92] (thanks to all participants)
+- [x] Seamless http/https
 - [x] Web update (requires web server)
 - [x] Batch firmware sync
 - [x] Force firmware update [#8]
 - [x] https support [#26] ( Thanks to @fbambusi )
 - [x] Signature check of downloaded firmware-image [#65]
-- [x] https or https
 - [x] Signature verification
 - [x] Semantic versioning support
-- [x] Any fs::FS support (SPIFFS/LITTLEFS/SD) for cert/signature storage [#79], [#74], [#91], [#92] (thanks to all participants)
-- [x] SPIFFS/LittleFS partition Update [#25], [#47], [#60], [#92]  (thanks to all participants)
 - [ ] Checking for update via bin headers [#15]
 
 ## How it works
@@ -34,7 +35,7 @@ There are a few things that need to be in place for an update to work.
 - A webserver with the firmware information in a JSON file
 - Firmware version
 - Firmware type
-- Firmware bin
+- Firmware bin (can optionnally be compressed with zlib or gzip)
 - For https or signature check: SPIFFS with root_ca.pem (https) and rsa_key.pem (signature check)
 
 You can supply http or https URLs. If you are using https, you need the root_ca.pem in your SPIFFS partition. For the actual firmware it will use https when you define port 443 or 4433. Otherwise it will use plain http.
@@ -155,11 +156,13 @@ const char *password = "";
 
 esp32FOTA esp32FOTA("esp32-fota-http", "1.0.0");
 
+const char* manifest_url = "http://server/fota/fota.json";
+
 void setup()
 {
   Serial.begin(115200);
   setup_wifi();
-  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
+  esp32FOTA.setManifestURL( manifest_url );
   // esp32FOTA.useDeviceId( true ); // optionally append the device ID to the HTTP query
 }
 
@@ -190,10 +193,13 @@ void loop()
 Late init is possible using `FOTAConfig_t`, allowing more complex configurations:
 
 ```cpp
+#include <SPIFFS.h> // include filesystem *before* esp32FOTA librart
 #include <esp32FOTA.hpp>
-#include <SPIFFS.h>
 
 esp32FOTA FOTA;
+
+const char* manifest_url = "http://server/fota/fota.json";
+const char* fota_name = "esp32-fota-http";
 
 // CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &SPIFFS );
 // CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &SD );
@@ -205,8 +211,8 @@ void setup()
 
   {
     auto cfg = FOTA.getConfig();
-    cfg.name          = "esp32-fota-http";
-    cfg.manifest_url  = "http://server/fota/fota.json";
+    cfg.name          = fota_name;
+    cfg.manifest_url  = manifest_url;
     cfg.sem           = SemverClass( 1, 0, 0 ); // major, minor, patch
     cfg.check_sig     = false; // verify signed firmware with rsa public key
     cfg.unsafe        = true; // disable certificate check when using TLS
@@ -335,10 +341,13 @@ CryptoFileAsset *MyPubKey = new CryptoFileAsset("RSA Key", "/rsa_key.pub", &SD);
 Then later in the `setup()`:
 
 ```C++
+
+const char* manifest_url = "http://server/fota/fota.json";
+
 void setup()
 {
   // (...)
-  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
+  esp32FOTA.setManifestURL( manifest_url );
   esp32FOTA.setRootCA( MyRootCA );
   esp32FOTA.setPubKey( MyPubKey );
 }

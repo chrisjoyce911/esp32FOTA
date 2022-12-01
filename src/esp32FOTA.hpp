@@ -77,25 +77,53 @@ extern "C" {
 #if __has_include(<flashz.hpp>)
   #pragma message "Using FlashZ as Update agent"
   #include <flashz.hpp>
-  #define F_Update FlashZ::getInstance()
+  #define F_Compression "zlib"
   #define F_hasZlib() true
-  #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER && ((partition == U_SPIFFS && _flashFileSystemUrl.indexOf("zz")>-1) || (partition == U_FLASH && _firmwareUrl.indexOf("zz")>-1)))
-  #define F_canBegin() (mode_z ? F_Update.beginz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(updateSize, partition))
+  #define F_Update FlashZ::getInstance()
   #define F_UpdateEnd() (mode_z ? F_Update.endz() : F_Update.end())
   #define F_abort() if (mode_z) F_Update.abortz(); else F_Update.abort()
   #define F_writeStream() (mode_z ? F_Update.writezStream(*_stream, updateSize) : F_Update.writeStream(*_stream))
+  // #define DEBUG_ESP32_FLASHZ
+  #if !defined DEBUG_ESP32_FLASHZ
+    #define F_isZlibStream() (_stream->peek() == ZLIB_HEADER && ((partition == U_SPIFFS && _flashFileSystemUrl.indexOf("zz")>-1) || (partition == U_FLASH && _firmwareUrl.indexOf("zz")>-1)))
+    #define F_canBegin() (mode_z ? F_Update.beginz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(updateSize, partition))
+  #else
+    __attribute__((unused)) static bool F_canBegin_cb(bool mode_z, int updateSize, int partition) { // implement debug here
+      return (mode_z ? F_Update.beginz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(updateSize, partition));
+    }
+    __attribute__((unused)) static bool F_isZlibStream_cb( Stream* stream, int partition, String flashFileSystemUrl, String firmwareUrl ) { // implement debug here
+      return (stream->peek() == ZLIB_HEADER && ((partition == U_SPIFFS && flashFileSystemUrl.indexOf("zz")>-1) || (partition == U_FLASH && firmwareUrl.indexOf("zz")>-1)));
+    }
+    #define F_isZlibStream() F_isZlibStream_cb( _stream, partition, _flashFileSystemUrl, _firmwareUrl )
+    #define F_canBegin() F_canBegin_cb(mode_z, updateSize, partition)
+  #endif
+
 #elif __has_include("ESP32-targz.h")
   #pragma message "Using GzUpdateClass as Update agent"
   #include <ESP32-targz.h>
-  #define F_Update GzUpdateClass::getInstance()
+  #define F_Compression "gzip"
   #define F_hasZlib() true
-  #define F_isZlibStream() (_stream->peek() == 0x1f && ((partition == U_SPIFFS && _flashFileSystemUrl.indexOf("gz")>-1) || (partition == U_FLASH && _firmwareUrl.indexOf("gz")>-1)) )
-  #define F_canBegin() (mode_z ? F_Update.begingz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(updateSize, partition))
+  #define F_Update GzUpdateClass::getInstance()
   #define F_UpdateEnd() (mode_z ? F_Update.endgz() : F_Update.end())
   #define F_abort() if (mode_z) F_Update.abortgz(); else F_Update.abort()
   #define F_writeStream() (mode_z ? F_Update.writeGzStream(*_stream, updateSize) : F_Update.writeStream(*_stream))
+  // #define DEBUG_ESP32_TARGZ
+  #if !defined DEBUG_ESP32_TARGZ
+    #define F_isZlibStream() (_stream->peek() == 0x1f && ((partition == U_SPIFFS && _flashFileSystemUrl.indexOf("gz")>-1) || (partition == U_FLASH && _firmwareUrl.indexOf("gz")>-1)) )
+    #define F_canBegin() (mode_z ? F_Update.begingz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(updateSize, partition))
+  #else
+    __attribute__((unused)) static bool F_canBegin_cb(bool mode_z, int updateSize, int partition) { // implement debug here
+      return (mode_z ? F_Update.begingz(UPDATE_SIZE_UNKNOWN, partition) : F_Update.begin(updateSize, partition));
+    }
+    __attribute__((unused)) static bool F_isZlibStream_cb( Stream* stream, int partition, String flashFileSystemUrl, String firmwareUrl ) { // implement debug here
+      return (stream->peek() == 0x1f && ((partition == U_SPIFFS && flashFileSystemUrl.indexOf("gz")>-1) || (partition == U_FLASH && firmwareUrl.indexOf("gz")>-1)) );
+    }
+    #define F_isZlibStream() F_isZlibStream_cb( _stream, partition, _flashFileSystemUrl, _firmwareUrl )
+    #define F_canBegin() F_canBegin_cb(mode_z, updateSize, partition)
+  #endif
 #else
   #include <Update.h>
+  #define F_Compression "none"
   #define F_Update Update
   #define F_hasZlib() false
   #define F_isZlibStream() false
@@ -259,6 +287,7 @@ public:
 
   // updating from a File or from Serial?
   void setStreamType( FOTAStreamType_t stream_type ) { _stream_type = stream_type; }
+  void setStreamTimeout( uint32_t timeout ) { _stream_timeout = timeout; }
 
   const char*       getManifestURL()   { return _manifestUrl.c_str(); }
   const char*       getFirmwareURL()   { return _firmwareUrl.c_str(); }
@@ -296,6 +325,7 @@ private:
   bool mode_z  = F_hasZlib();
 
   FOTAStreamType_t _stream_type = FOTA_HTTP_STREAM; // defaults to HTTP
+  uint32_t _stream_timeout = 10000; // max wait for stream->available()
 
   void setupStream();
   void stopStream();

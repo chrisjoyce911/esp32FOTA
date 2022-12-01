@@ -1,12 +1,12 @@
 /**
    esp32 firmware OTA
-   
+
    Purpose: Perform an OTA update from a bin located on a webserver (HTTPS) without having a root cert
 
    Setup:
    Step 1 : Set your WiFi (ssid & password)
    Step 2 : set esp32fota()
-   
+
    Upload:
    Step 1 : Menu > Sketch > Export Compiled Library. The bin file will be saved in the sketch folder (Menu > Sketch > Show Sketch folder)
    Step 2 : Upload it to your webserver
@@ -29,6 +29,7 @@ const char *password = "";
 
 // esp32fota esp32fota("<Type of Firmware for this device>", <this version>, <validate signature>, <allow insecure https>);
 esp32FOTA esp32FOTA("esp32-fota-http", 1, false, true);
+const char* manifest_url = "http://server/fota/fota.json";
 
 void setup_wifi()
 {
@@ -50,8 +51,8 @@ void setup_wifi()
 
 void setup()
 {
-  
-  esp32FOTA.checkURL = "https://server/fota/fota.json";
+
+  esp32FOTA.checkURL = manifest_url;
   Serial.begin(115200);
   setup_wifi();
 }

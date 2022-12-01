@@ -8,6 +8,7 @@
 */
 
 #include <esp32fota.h>
+#include <debug/test_fota_common.h>
 
 #include "root_ca.h"
 
@@ -16,34 +17,16 @@ int firmware_version_major  = 3;
 int firmware_version_minor  = 0;
 int firmware_version_patch  = 0;
 
-#if !defined FOTA_URL
-  #define FOTA_URL "http://server/fota/fota.json"
-#endif
+//  #define FOTA_URL "http://server/fota/fota.json"
+
 const char* firmware_name   = "esp32-fota-http";
 const bool check_signature  = false;
 const bool disable_security = false;
 // for debug only
+const char* title           = "3";
 const char* description     = "PROGMEM example with security";
 
-const char* fota_debug_fmt = R"DBG_FMT(
 
-***************** STAGE %s *****************
-
-  Description      : %s
-  Firmware type    : %s
-  Firmware version : %i.%i.%i
-  Signature check  : %s
-  TLS Cert check   : %s
-  Compression      : %s
-
-********************************************
-
-)DBG_FMT";
-
-// esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>, <allow insecure TLS>);
-// esp32FOTA esp32FOTA( String(firmware_name), firmware_version, check_signature, disable_security );
-
-// for manual configuration
 esp32FOTA FOTA;
 
 // CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &LittleFS );
@@ -80,17 +63,7 @@ void setup()
 {
   Serial.begin(115200);
 
-  Serial.printf( fota_debug_fmt,
-    "3",
-    description,
-    firmware_name,
-    firmware_version_major,
-    firmware_version_minor,
-    firmware_version_patch,
-    check_signature  ?"Enabled":"Disabled",
-    disable_security ?"Disabled":"Enabled",
-    FOTA.zlibSupported() ?"Enabled":"Disabled"
-  );
+  PrintFOTAInfo();
 
   {
     auto cfg = FOTA.getConfig();
