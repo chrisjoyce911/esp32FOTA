@@ -156,11 +156,13 @@ const char *password = "";
 
 esp32FOTA esp32FOTA("esp32-fota-http", "1.0.0");
 
+const char* manifest_url = "http://server/fota/fota.json";
+
 void setup()
 {
   Serial.begin(115200);
   setup_wifi();
-  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
+  esp32FOTA.setManifestURL( manifest_url );
   // esp32FOTA.useDeviceId( true ); // optionally append the device ID to the HTTP query
 }
 
@@ -196,6 +198,9 @@ Late init is possible using `FOTAConfig_t`, allowing more complex configurations
 
 esp32FOTA FOTA;
 
+const char* manifest_url = "http://server/fota/fota.json";
+const char* fota_name = "esp32-fota-http";
+
 // CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &SPIFFS );
 // CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &SD );
 
@@ -206,8 +211,8 @@ void setup()
 
   {
     auto cfg = FOTA.getConfig();
-    cfg.name          = "esp32-fota-http";
-    cfg.manifest_url  = "http://server/fota/fota.json";
+    cfg.name          = fota_name;
+    cfg.manifest_url  = manifest_url;
     cfg.sem           = SemverClass( 1, 0, 0 ); // major, minor, patch
     cfg.check_sig     = false; // verify signed firmware with rsa public key
     cfg.unsafe        = true; // disable certificate check when using TLS
@@ -336,10 +341,13 @@ CryptoFileAsset *MyPubKey = new CryptoFileAsset("RSA Key", "/rsa_key.pub", &SD);
 Then later in the `setup()`:
 
 ```C++
+
+const char* manifest_url = "http://server/fota/fota.json";
+
 void setup()
 {
   // (...)
-  esp32FOTA.setManifestURL( "http://server/fota/fota.json" );
+  esp32FOTA.setManifestURL( manifest_url );
   esp32FOTA.setRootCA( MyRootCA );
   esp32FOTA.setPubKey( MyPubKey );
 }
