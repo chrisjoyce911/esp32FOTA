@@ -503,7 +503,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         Serial.println("Written : " + String(written) + " successfully");
         updateSize = written; // flatten value to prevent overflow when checking signature
     } else {
-        Serial.println("Written only : " + String(written) + "/" + String(updateSize) + ". Premature end of stream?");
+        Serial.println("Written only : " + String(written) + "/" + String((int)updateSize) + ". Premature end of stream?");
         F_abort();
         return false;
     }
