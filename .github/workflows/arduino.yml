@@ -32,5 +32,5 @@ jobs:
 
           #sketch-paths: |
             #- examples/HTTP/HTTP/HTTP.ino
-          #cli-compile-flags: |
-            #- --warnings="none"
+          cli-compile-flags: |
+            - --warnings="none"
