@@ -22,7 +22,7 @@ const char *ssid = "";
 const char *password = "";
 
 // esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
-esp32FOTA FOTA("esp32-fota-http", 1, false);
+esp32FOTA esp32FOTA("esp32-fota-http", 1, false);
 const char* manifest_url = "http://server/fota/fota.json";
 
 void setup()
@@ -54,10 +54,10 @@ void setup_wifi()
 
 void loop()
 {
-  bool updatedNeeded = FOTA.execHTTPcheck();
+  bool updatedNeeded = esp32FOTA.execHTTPcheck();
   if (updatedNeeded)
   {
-    FOTA.execOTA();
+    esp32FOTA.execOTA();
   }
 
   delay(2000);
