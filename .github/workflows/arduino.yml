@@ -27,6 +27,7 @@ jobs:
               path: ./
             - name: ArduinoJson
             - name: ESP32-targz
+            - name: esp32-flashz
           #sketch-paths: |
             #- examples/HTTP/HTTP/HTTP.ino
           #cli-compile-flags: |
