@@ -28,6 +28,8 @@ jobs:
             - name: ArduinoJson
             - name: ESP32-targz
             - name: esp32-flashz
+              source-url: https://github.com/vortigont/esp32-flashz.git
+
           #sketch-paths: |
             #- examples/HTTP/HTTP/HTTP.ino
           #cli-compile-flags: |
