@@ -1,0 +1,28 @@
+name: Arduino Build
+
+# The workflow will run on every push and pull request to the repository
+on:
+  - push
+  - pull_request
+
+jobs:
+  compile-sketch:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Compile sketch
+        uses: arduino/compile-sketches@v1
+        with:
+          # github-token: ${{ secrets.GITHUB_TOKEN }}
+          fqbn: esp32:esp32:esp32
+          platforms: |
+            - name: esp32:esp32
+              source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          #sketch-paths: |
+            #- examples/HTTP/HTTP/HTTP.ino
+          #cli-compile-flags: |
+            #- --warnings="none"
