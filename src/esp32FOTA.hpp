@@ -241,10 +241,10 @@ public:
   void useDeviceId( bool use=true ) { _cfg.use_device_id = use; }
 
   // config setter
-  void setConfig( FOTAConfig_t cfg ) { _cfg = cfg; }
+  void setConfig( FOTAConfig_t cfg );
 
   // Manually specify the manifest url, this is provided as a transition between legagy and new config system
-  void setManifestURL( const String &manifest_url ) { _cfg.manifest_url = manifest_url.c_str(); }
+  void setManifestURL( const String &manifest_url ) { setString( _cfg.manifest_url, manifest_url.c_str() ); }
 
   // use this to set "Authorization: Basic" or other specific headers to be sent with the queries
   void setExtraHTTPHeader( String name, String value ) { extraHTTPHeaders[name] = value; }
@@ -311,8 +311,8 @@ public:
   bool setupHTTP( const char* url );
   void setFotaStream( Stream* stream ) { _stream = stream; }
 
-  [[deprecated("Use setManifestURL( String ) or cfg.manifest_url with setConfig( FOTAConfig_t )")]] String checkURL = "";
-  [[deprecated("Use cfg.use_device_id with setConfig( FOTAConfig_t )")]] bool useDeviceID = false;
+  //[[deprecated("Use setManifestURL( String ) or cfg.manifest_url with setConfig( FOTAConfig_t )")]] String checkURL = "";
+  //[[deprecated("Use cfg.use_device_id with setConfig( FOTAConfig_t )")]] bool useDeviceID = false;
 
 
 private:
@@ -329,6 +329,7 @@ private:
 
   void setupStream();
   void stopStream();
+  void setString( const char *dest, const char* src ); // mem allocator
 
   FOTAConfig_t _cfg;
 

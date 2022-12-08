@@ -120,12 +120,22 @@ esp32FOTA::~esp32FOTA(){}
 
 esp32FOTA::esp32FOTA( FOTAConfig_t cfg )
 {
-  setConfig( cfg );
+    setConfig( cfg );
 }
+
+
+void esp32FOTA::setString( const char *dest, const char* src )
+{
+    if( !src ) return;
+    dest = (const char*)calloc( strlen(src)+1, sizeof(char));
+    strcpy( (char*)dest, src );
+}
+
 
 
 esp32FOTA::esp32FOTA(const char* firmwareType, int firmwareVersion, bool validate, bool allow_insecure_https)
 {
+    setString( _cfg.name, firmwareType );
     _cfg.name      = firmwareType;
     _cfg.sem       = SemverClass( firmwareVersion );
     _cfg.check_sig = validate;
@@ -138,13 +148,28 @@ esp32FOTA::esp32FOTA(const char* firmwareType, int firmwareVersion, bool validat
 
 esp32FOTA::esp32FOTA(const char* firmwareType, const char* firmwareSemanticVersion, bool validate, bool allow_insecure_https)
 {
-    _cfg.name      = firmwareType;
+    setString( _cfg.name, firmwareType );
     _cfg.check_sig = validate;
     _cfg.unsafe    = allow_insecure_https;
     _cfg.sem       = SemverClass( firmwareSemanticVersion );
 
     setupCryptoAssets();
     debugSemVer("Current firmware version", _cfg.sem.ver() );
+}
+
+
+
+void esp32FOTA::setConfig( FOTAConfig_t cfg )
+{
+    setString( _cfg.name, cfg.name );
+    setString( _cfg.manifest_url, cfg.manifest_url );
+
+    _cfg.sem           = cfg.sem;
+    _cfg.check_sig     = cfg.check_sig;
+    _cfg.unsafe        = cfg.unsafe;
+    _cfg.use_device_id = cfg.use_device_id;
+    _cfg.root_ca       = cfg.root_ca;
+    _cfg.pub_key       = cfg.pub_key;
 }
 
 
@@ -419,15 +444,17 @@ bool esp32FOTA::execOTA()
 bool esp32FOTA::execOTA( int partition, bool restart_after )
 {
     // health checks
+    if( partition != U_SPIFFS && partition != U_FLASH ) {
+        Serial.printf("Bad partition number: %i or empty URL, aborting\n", partition);
+        return false;
+    }
     if( partition == U_SPIFFS && _flashFileSystemUrl.isEmpty() ) {
-      log_i("[SKIP] No spiffs/littlefs/fatfs partition was specified");
-      return true; // data partition is optional, so not an error
-    } else if ( partition == U_FLASH && _firmwareUrl.isEmpty() ) {
-      log_e("No app partition was specified");
-      return false; // app partition is mandatory
-    } else if( partition != U_SPIFFS && partition != U_FLASH ) {
-      log_e("Bad partition number: %i or empty URL", partition);
-      return false;
+        log_i("[SKIP] No spiffs/littlefs/fatfs partition was specified");
+        return true; // data partition is optional, so not an error
+    }
+    if ( partition == U_FLASH && _firmwareUrl.isEmpty() ) {
+        Serial.printf("No firmware URL, aborting\n");
+        return false; // app partition is mandatory
     }
 
     // call getHTTPStream
@@ -455,15 +482,15 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
     log_d("compression: %s", mode_z ? "enabled" : "disabled" );
 
     if( _cfg.check_sig ) {
-      if( mode_z ) {
-        Serial.println("[ERROR] Compressed && signed image is not (yet) supported");
-        return false;
-      }
-      if( updateSize == UPDATE_SIZE_UNKNOWN || updateSize <= FW_SIGNATURE_LENGTH ) {
-          Serial.println("[ERROR] Malformed signature+fw combo");
-          return false;
-      }
-      updateSize -= FW_SIGNATURE_LENGTH;
+        if( mode_z ) {
+            Serial.println("[ERROR] Compressed && signed image is not (yet) supported");
+            return false;
+        }
+        if( updateSize == UPDATE_SIZE_UNKNOWN || updateSize <= FW_SIGNATURE_LENGTH ) {
+            Serial.println("[ERROR] Malformed signature+fw combo");
+            return false;
+        }
+        updateSize -= FW_SIGNATURE_LENGTH;
     }
 
     // If using compression, the size is implicitely unknown
@@ -695,17 +722,22 @@ bool esp32FOTA::execHTTPcheck()
 {
     String useURL = String( _cfg.manifest_url );
 
-    // being deprecated, soon unsupported!
-    if( useURL.isEmpty() && !checkURL.isEmpty() ) {
-        Serial.println("checkURL will soon be unsupported, use FOTAConfig_t::manifest_url instead!!");
-        useURL = checkURL;
+    if( useURL.isEmpty() ) {
+      Serial.println("No manifest_url provided in config, aborting!");
+      return false;
     }
 
     // being deprecated, soon unsupported!
-    if( useDeviceID ) {
-        Serial.println("useDeviceID will soon be unsupported, use FOTAConfig_t::use_device_id instead!!");
-        _cfg.use_device_id = useDeviceID;
-    }
+    // if( useURL.isEmpty() && !checkURL.isEmpty() ) {
+    //     Serial.println("checkURL will soon be unsupported, use FOTAConfig_t::manifest_url instead!!");
+    //     useURL = checkURL;
+    // }
+
+    // // being deprecated, soon unsupported!
+    // if( useDeviceID ) {
+    //     Serial.println("useDeviceID will soon be unsupported, use FOTAConfig_t::use_device_id instead!!");
+    //     _cfg.use_device_id = useDeviceID;
+    // }
 
     if (_cfg.use_device_id) {
         // URL may already have GET values
@@ -792,7 +824,7 @@ void esp32FOTA::forceUpdate(const char* firmwareURL, bool validate )
 
 void esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char*  firmwarePath, bool validate )
 {
-    String firmwareURL("http");
+    static String firmwareURL("http");
     if ( firmwarePort == 443 || firmwarePort == 4433 ) firmwareURL += "s";
     firmwareURL += String(firmwareHost);
     firmwareURL += ":";
