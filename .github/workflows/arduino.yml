@@ -17,7 +17,7 @@ jobs:
       - name: Compile examples
         uses: arduino/compile-sketches@v1
         with:
-          # github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           fqbn: esp32:esp32:esp32
           platforms: |
             - name: esp32:esp32
