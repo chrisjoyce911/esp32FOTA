@@ -23,10 +23,6 @@
 #include <esp32fota.h>
 
 
-// Change to your WiFi credentials
-const char *ssid = "";
-const char *password = "";
-
 // esp32fota esp32fota("<Type of Firmware for this device>", <this version>, <validate signature>, <allow insecure https>);
 esp32FOTA esp32FOTA("esp32-fota-http", 1, false, true);
 const char* manifest_url = "http://server/fota/fota.json";
@@ -34,10 +30,9 @@ const char* manifest_url = "http://server/fota/fota.json";
 void setup_wifi()
 {
   delay(10);
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  Serial.print("Connecting to WiFi");
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(); // no WiFi creds in this demo :-)
 
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -51,9 +46,9 @@ void setup_wifi()
 
 void setup()
 {
-
-  esp32FOTA.checkURL = manifest_url;
   Serial.begin(115200);
+  esp32FOTA.setManifestURL( manifest_url );
+  esp32FOTA.printConfig();
   setup_wifi();
 }
 

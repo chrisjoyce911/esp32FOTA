@@ -81,8 +81,8 @@ void setup()
   {
     auto cfg = FOTA.getConfig();
 
-    cfg.name         = firmware_name;
-    cfg.manifest_url = FOTA_URL;
+    cfg.name         = (char*)firmware_name;
+    cfg.manifest_url = (char*)FOTA_URL;
     cfg.sem          = SemverClass( firmware_version );
     cfg.check_sig    = check_signature;
     cfg.unsafe       = disable_security;
@@ -92,7 +92,7 @@ void setup()
     FOTA.setConfig( cfg );
   }
 
-
+  FOTA.printConfig();
   // FOTA.setStatusChecker( WiFiConnected );
 
 
