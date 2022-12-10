@@ -21,14 +21,12 @@
 
 #include <esp32fota.h>
 
-// Change to your WiFi credentials
-const char *ssid = "";
-const char *password = "";
 
 // esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
 esp32FOTA esp32FOTA("esp32-fota-http", 1, true);
 
 const char* manifest_url = "http://server/fota/fota.json";
+CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &SPIFFS );
 
 void setup_wifi()
 {
@@ -39,7 +37,7 @@ void setup_wifi()
   // Need to provide SPIFFS with rsa_key.pub inside.
   SPIFFS.begin( true );
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(); // no WiFi creds in this demo :-)
 
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -53,8 +51,10 @@ void setup_wifi()
 
 void setup()
 {
-  esp32FOTA.setManifestURL( manifest_url );
   Serial.begin(115200);
+  esp32FOTA.setManifestURL( manifest_url );
+  esp32FOTA.setPubKey( MyRSAKey );
+  esp32FOTA.printConfig();
   setup_wifi();
 }
 

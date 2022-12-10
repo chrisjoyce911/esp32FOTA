@@ -24,13 +24,11 @@
 #include <esp32fota.h>
 
 
-// Change to your WiFi credentials
-const char *ssid = "";
-const char *password = "";
-
 // esp32fota esp32fota("<Type of Firme for this device>", <this version>, <validate signature>);
 esp32FOTA esp32FOTA("esp32-fota-http", 1, false);
-const char* manifest_url = "http://server/fota/fota.json";
+const char* manifest_url = "https://server/fota/fota.json";
+
+CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &SPIFFS );
 
 void setup_wifi()
 {
@@ -38,7 +36,7 @@ void setup_wifi()
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(); // no WiFi creds in this demo :-)
 
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -52,11 +50,12 @@ void setup_wifi()
 
 void setup()
 {
+  Serial.begin(115200);
   // Provide spiffs with root_ca.pem to validate server certificate
   SPIFFS.begin(true);
-
   esp32FOTA.setManifestURL( manifest_url );
-  Serial.begin(115200);
+  esp32FOTA.setRootCA( MyRootCA );
+  esp32FOTA.printConfig();
   setup_wifi();
 }
 
