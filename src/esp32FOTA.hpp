@@ -189,8 +189,8 @@ private:
 
 struct FOTAConfig_t
 {
-  const char*  name { nullptr };
-  const char*  manifest_url { nullptr };
+  char*        name { nullptr };
+  char*        manifest_url { nullptr };
   SemverClass  sem {0};
   bool         check_sig { false };
   bool         unsafe { false };
@@ -242,9 +242,11 @@ public:
 
   // config setter
   void setConfig( FOTAConfig_t cfg );
+  void printConfig( FOTAConfig_t *cfg=nullptr );
 
   // Manually specify the manifest url, this is provided as a transition between legagy and new config system
-  void setManifestURL( const String &manifest_url ) { setString( _cfg.manifest_url, manifest_url.c_str() ); }
+  void setManifestURL( const char* manifest_url ) { setString( &_cfg.manifest_url, manifest_url ); }
+  void setManifestURL( const String &manifest_url ) { setManifestURL( manifest_url.c_str() ); }
 
   // use this to set "Authorization: Basic" or other specific headers to be sent with the queries
   void setExtraHTTPHeader( String name, String value ) { extraHTTPHeaders[name] = value; }
@@ -329,7 +331,7 @@ private:
 
   void setupStream();
   void stopStream();
-  void setString( const char *dest, const char* src ); // mem allocator
+  void setString( char **dest, const char* src ); // mem allocator
 
   FOTAConfig_t _cfg;
 

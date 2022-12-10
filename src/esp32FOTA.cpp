@@ -124,19 +124,29 @@ esp32FOTA::esp32FOTA( FOTAConfig_t cfg )
 }
 
 
-void esp32FOTA::setString( const char *dest, const char* src )
+void esp32FOTA::setString( char **dest, const char* src )
 {
-    if( !src ) return;
-    dest = (const char*)calloc( strlen(src)+1, sizeof(char));
-    strcpy( (char*)dest, src );
+    if( !src ) {
+      log_e("Can't set string to empty source");
+      return;
+    }
+    if( *dest != nullptr ) free( *dest );
+    *dest = (char*)malloc( strlen(src)+1 );
+    if( *dest == NULL ) {
+      log_e("Unable to allocate %d bytes", strlen(src)+1);
+      return;
+    }
+    //strcpy( dest, src);
+    memcpy( *dest, src, strlen(src)+1);
+    log_d("Assigned value: %s <= %s", *dest, src );
 }
 
 
 
 esp32FOTA::esp32FOTA(const char* firmwareType, int firmwareVersion, bool validate, bool allow_insecure_https)
 {
-    setString( _cfg.name, firmwareType );
-    _cfg.name      = firmwareType;
+    setString( &_cfg.name, firmwareType );
+    //_cfg.name      = (char*)firmwareType;
     _cfg.sem       = SemverClass( firmwareVersion );
     _cfg.check_sig = validate;
     _cfg.unsafe    = allow_insecure_https;
@@ -148,7 +158,8 @@ esp32FOTA::esp32FOTA(const char* firmwareType, int firmwareVersion, bool validat
 
 esp32FOTA::esp32FOTA(const char* firmwareType, const char* firmwareSemanticVersion, bool validate, bool allow_insecure_https)
 {
-    setString( _cfg.name, firmwareType );
+    setString( &_cfg.name, firmwareType );
+    //_cfg.name      = (char*)firmwareType;
     _cfg.check_sig = validate;
     _cfg.unsafe    = allow_insecure_https;
     _cfg.sem       = SemverClass( firmwareSemanticVersion );
@@ -161,8 +172,8 @@ esp32FOTA::esp32FOTA(const char* firmwareType, const char* firmwareSemanticVersi
 
 void esp32FOTA::setConfig( FOTAConfig_t cfg )
 {
-    setString( _cfg.name, cfg.name );
-    setString( _cfg.manifest_url, cfg.manifest_url );
+    setString( &_cfg.name, cfg.name );
+    setString( &_cfg.manifest_url, cfg.manifest_url );
 
     _cfg.sem           = cfg.sem;
     _cfg.check_sig     = cfg.check_sig;
@@ -172,6 +183,23 @@ void esp32FOTA::setConfig( FOTAConfig_t cfg )
     _cfg.pub_key       = cfg.pub_key;
 }
 
+
+void esp32FOTA::printConfig( FOTAConfig_t *cfg )
+{
+  if( cfg == nullptr ) cfg = &_cfg;
+  Serial.printf("Name: %s\nManifest URL:%s\nSemantic Version: %d.%d.%d\nCheck Sig: %s\nUnsafe: %s\nUse Device ID: %s\nRootCA: %s\nPubKey: %s\n",
+    cfg->name ? cfg->name : "None",
+    cfg->manifest_url ? cfg->manifest_url : "None",
+    cfg->sem.ver()->major,
+    cfg->sem.ver()->minor,
+    cfg->sem.ver()->patch,
+    cfg->check_sig ?"true":"false",
+    cfg->unsafe ?"true":"false",
+    cfg->use_device_id ?"true":"false",
+    cfg->root_ca ?"true":"false",
+    cfg->pub_key ?"true":"false"
+  );
+}
 
 
 
