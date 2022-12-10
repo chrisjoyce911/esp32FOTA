@@ -13,21 +13,18 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v3
-        #with:
-          #ref: ${{ github.event.ref }}
 
       - name: Compile examples
         uses: arduino/compile-sketches@v1
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          #github-token: ${{ secrets.GITHUB_TOKEN }}
           fqbn: esp32:esp32:esp32
           platforms: |
             - name: esp32:esp32
               source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
           libraries: |
             - name: esp32FOTA
-              path: ./
-              version: ${{ github.event.ref }}
+              source-path: ./
             - name: ArduinoJson
             - name: ESP32-targz
             - name: esp32-flashz
