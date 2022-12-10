@@ -33,8 +33,7 @@ CryptoFileAsset *MyRootCA = new CryptoFileAsset( "/root_ca.pem", &SPIFFS );
 void setup_wifi()
 {
   delay(10);
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  Serial.print("Connecting to WiFi");
 
   WiFi.begin(); // no WiFi creds in this demo :-)
 

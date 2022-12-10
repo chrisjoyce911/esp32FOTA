@@ -31,8 +31,7 @@ CryptoFileAsset *MyRSAKey = new CryptoFileAsset( "/rsa_key.pub", &SPIFFS );
 void setup_wifi()
 {
   delay(10);
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  Serial.print("Connecting to WiFi");
 
   // Need to provide SPIFFS with rsa_key.pub inside.
   SPIFFS.begin( true );

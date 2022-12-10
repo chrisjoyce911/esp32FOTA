@@ -26,9 +26,7 @@ const char* manifest_url = "http://server/fota/fota.json";
 void setup_wifi()
 {
   delay(10);
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
+  Serial.print("Connecting to WiFi");
   WiFi.begin(); // no WiFi creds in this demo :-)
 
   while (WiFi.status() != WL_CONNECTED)
