@@ -13,8 +13,8 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
+        #with:
+          #ref: ${{ github.event.ref }}
 
       - name: Compile examples
         uses: arduino/compile-sketches@v1
@@ -27,7 +27,7 @@ jobs:
           libraries: |
             - name: esp32FOTA
               path: ./
-              version: ${{ github.event.pull_request.head.sha }}
+              version: ${{ github.event.ref }}
             - name: ArduinoJson
             - name: ESP32-targz
             - name: esp32-flashz
