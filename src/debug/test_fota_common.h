@@ -6,7 +6,7 @@ extern int firmware_version_minor;
 extern int firmware_version_patch;
 
 #if !defined FOTA_URL
-  #define FOTA_URL "http://server/fota/fota.json"
+  #define FOTA_URL "http://phpsecu.re/esp32/esp32fota/firmware.json"
 #endif
 
 extern const char* firmware_name;

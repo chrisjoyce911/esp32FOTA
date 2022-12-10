@@ -70,6 +70,7 @@ void setup()
     //cfg.pub_key      = MyRSAKey;
     FOTA.setConfig( cfg );
   }
+  esp32FOTA.printConfig();
 
   setup_wifi();
 }
