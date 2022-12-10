@@ -23,14 +23,27 @@ jobs:
             - name: esp32:esp32
               source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
           libraries: |
-            - name: esp32FOTA
-              path: ./
             - name: ArduinoJson
             - name: ESP32-targz
             - name: esp32-flashz
               source-url: https://github.com/vortigont/esp32-flashz.git
 
-          #sketch-paths: |
-            #- examples/HTTP/HTTP/HTTP.ino
+          sketch-paths: |
+            - examples/withDeviceID/withDeviceID.ino
+            - examples/forceUpdate/forceUpdate.ino
+            - examples/HTTP/HTTP_signature_check/HTTP_signature_check.ino
+            - examples/HTTP/HTTPS/HTTPS.ino
+            - examples/HTTP/HTTPS_without_root_cert/HTTPS_without_root_cert.ino
+            - examples/HTTP/HTTP/HTTP.ino
+            - examples/anyFS/anyFS.ino
+            - examples/anyFS/test/5.sig-in-progmem/5.sig-in-progmem.ino
+            - examples/anyFS/test/4.cert-in-littlefs/4.cert-in-littlefs.ino
+            - examples/anyFS/test/1.2.nosecurity.gz/1.2.nosecurity.gz.ino
+            - examples/anyFS/test/2.cert-in-spiffs/2.cert-in-spiffs.ino
+            - examples/anyFS/test/3.cert-in-progmem/3.cert-in-progmem.ino
+            - examples/anyFS/test/99.final-stage/99.final-stage.ino
+            - examples/anyFS/test/1.3.nosecurity.zz/1.3.nosecurity.zz.ino
+            - examples/anyFS/test/1.1.nosecurity/1.1.nosecurity.ino
+
           cli-compile-flags: |
             - --warnings="default"
