@@ -67,8 +67,8 @@ void setup()
 
   {
     auto cfg = FOTA.getConfig();
-    cfg.name         = firmware_name;
-    cfg.manifest_url = FOTA_URL;
+    cfg.name         = (char*)firmware_name;
+    cfg.manifest_url = (char*)FOTA_URL;
     cfg.sem          = SemverClass( firmware_version_major, firmware_version_minor, firmware_version_patch );
     cfg.check_sig    = check_signature;
     cfg.unsafe       = disable_security;
