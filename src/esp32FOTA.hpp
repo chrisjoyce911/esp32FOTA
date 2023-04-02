@@ -45,29 +45,43 @@ extern "C" {
 
 // inherit includes from sketch, detect SPIFFS first for legacy support
 #if __has_include(<SPIFFS.h>) || defined _SPIFFS_H_
+  #if !defined(DISABLE_ALL_LIBRARY_WARNINGS)
   #pragma message "Using SPIFFS for certificate validation"
+  #endif
   #include <SPIFFS.h>
   #define FOTA_FS &SPIFFS
 #elif __has_include(<LittleFS.h>) || defined _LiffleFS_H_
+  #if !defined(DISABLE_ALL_LIBRARY_WARNINGS)
   #pragma message "Using LittleFS for certificate validation"
+  #endif
   #include <LittleFS.h>
   #define FOTA_FS &LittleFS
 #elif __has_include(<SD.h>) || defined _SD_H_
+  #if !defined(DISABLE_ALL_LIBRARY_WARNINGS)
   #pragma message "Using SD for certificate validation"
+  #endif
   #include <SD.h>
   #define FOTA_FS &SD
 #elif __has_include(<SD_MMC.h>) || defined _SD_MMC_H_
+  #if !defined(DISABLE_ALL_LIBRARY_WARNINGS)
   #pragma message "Using SD_MMC for certificate validation"
+  #endif
   #include <SD_MMC.h>
   #define FOTA_FS &SD_MMC
 #elif defined _LIFFLEFS_H_ // older externally linked, hard to identify and unsupported versions of SPIFFS
+  #if !defined(DISABLE_ALL_LIBRARY_WARNINGS)
   #pragma message "this version of LittleFS is unsupported, use #include <LittleFS.h> instead, if using platformio add LittleFS(esp32)@^2.0.0 to lib_deps"
+  #endif
 #elif __has_include(<PSRamFS.h>) || defined _PSRAMFS_H_
+  #if !defined(DISABLE_ALL_LIBRARY_WARNINGS)
   #pragma message "Using PSRamFS for certificate validation"
+  #endif
   #include <PSRamFS.h>
   #define FOTA_FS &PSRamFS
 #else
+  //#if !defined(DISABLE_ALL_LIBRARY_WARNINGS)
   // #pragma message "No filesystem provided, certificate validation will be unavailable (hint: include SD, SPIFFS or LittleFS before including this library)"
+  //#endif
   #define FOTA_FS nullptr
 #endif
 
