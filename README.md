@@ -426,7 +426,7 @@ esp32FOTA.setUpdateEndCb( [](int partition) {
 - Usage:
 
 ```cpp
-esp32FOTA.setUpdateCheckFailCb( [](int partition, int error code) {
+esp32FOTA.setUpdateCheckFailCb( [](int partition, int error_code) {
   Serial.printf("Update could validate %s partition (error %d)\n", partition==U_SPIFFS ? "spiffs" : "firmware", error_code );
   // error codes:
   //  -1 : partition not found
