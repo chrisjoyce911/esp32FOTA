@@ -851,6 +851,15 @@ void esp32FOTA::forceUpdate(const char* firmwareURL, bool validate )
     execOTA();
 }
 
+// Force a firmware update regardless on current version
+void esp32FOTA::forceUpdateSPIFFS(const char* firmwareURL, bool validate )
+{
+    _firmwareUrl = firmwareURL;
+    _flashFileSystemUrl = firmwareURL;
+    _cfg.check_sig = validate;
+    execOTA();
+}
+
 
 void esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char*  firmwarePath, bool validate )
 {

@@ -246,6 +246,8 @@ public:
   void forceUpdate(const char* firmwareURL, bool validate );
   void forceUpdate(bool validate );
 
+  void forceUpdateSPIFFS(const char* firmwareURL, bool validate );
+
   void handle();
 
   bool execOTA();
