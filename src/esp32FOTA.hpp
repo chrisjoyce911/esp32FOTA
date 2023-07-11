@@ -147,7 +147,7 @@ extern "C" {
   #define F_writeStream() F_Update.writeStream(*_stream);
 #endif
 
-
+#define FW_SIGNATURE_LENGTH     512
 
 struct SemverClass
 {
@@ -211,6 +211,7 @@ struct FOTAConfig_t
   bool         use_device_id { false };
   CryptoAsset* root_ca { nullptr };
   CryptoAsset* pub_key { nullptr };
+  size_t       signature_len {FW_SIGNATURE_LENGTH};
   FOTAConfig_t() = default;
 };
 
@@ -266,6 +267,9 @@ public:
 
   // use this to set "Authorization: Basic" or other specific headers to be sent with the queries
   void setExtraHTTPHeader( String name, String value ) { extraHTTPHeaders[name] = value; }
+
+  // set the signature len
+  void setSignatureLen( size_t len );
 
   // /!\ Only use this to change filesystem for **default** RootCA and PubKey paths.
   // Otherwise use setPubKey() and setRootCA()
