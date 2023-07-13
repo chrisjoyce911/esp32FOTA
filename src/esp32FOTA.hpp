@@ -243,15 +243,16 @@ public:
   template <typename T> void setPubKey( T* asset ) { _cfg.pub_key = (CryptoAsset*)asset; _cfg.check_sig = true; }
   template <typename T> void setRootCA( T* asset ) { _cfg.root_ca = (CryptoAsset*)asset; _cfg.unsafe = false; }
 
-  void forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char* firmwarePath, bool validate );
-  void forceUpdate(const char* firmwareURL, bool validate );
-  void forceUpdate(bool validate );
+  bool forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char* firmwarePath, bool validate );
+  bool forceUpdate(const char* firmwareURL, bool validate );
+  bool forceUpdate(bool validate );
 
-  void forceUpdateSPIFFS(const char* firmwareURL, bool validate );
+  bool forceUpdateSPIFFS(const char* firmwareURL, bool validate );
 
   void handle();
 
   bool execOTA();
+  bool execSPIFFSOTA();
   bool execOTA( int partition, bool restart_after = true );
   bool execHTTPcheck();
 

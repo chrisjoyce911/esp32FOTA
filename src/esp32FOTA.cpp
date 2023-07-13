@@ -473,6 +473,27 @@ bool esp32FOTA::execOTA()
     return ret;
 }
 
+// OTA Logic
+bool esp32FOTA::execSPIFFSOTA()
+{
+	bool ret;
+    setupStream();
+
+    if( !_flashFileSystemUrl.isEmpty() ) { // a data partition was specified in the json manifest, handle the spiffs partition first
+        if( _fs ) { // Possible risk of overwriting certs and signatures, cancel flashing!
+            log_e("Cowardly refusing to overwrite U_SPIFFS with %s. Use setCertFileSystem(nullptr) along with setPubKey()/setCAPem() to enable this feature.", _flashFileSystemUrl);
+            return false;
+        } else {
+            log_i("Will check if U_SPIFFS needs updating");
+            ret = execOTA( U_SPIFFS, false );
+        }
+    } else {
+        log_i("This update is for U_FLASH only");
+    }
+    stopStream();
+    return ret;
+}
+
 
 bool esp32FOTA::execOTA( int partition, bool restart_after )
 {
@@ -855,24 +876,24 @@ String esp32FOTA::getDeviceID()
 
 
 // Force a firmware update regardless on current version
-void esp32FOTA::forceUpdate(const char* firmwareURL, bool validate )
+bool esp32FOTA::forceUpdate(const char* firmwareURL, bool validate )
 {
     _firmwareUrl = firmwareURL;
     _cfg.check_sig = validate;
-    execOTA();
+    return execOTA();
 }
 
 // Force a firmware update regardless on current version
-void esp32FOTA::forceUpdateSPIFFS(const char* firmwareURL, bool validate )
+bool esp32FOTA::forceUpdateSPIFFS(const char* firmwareURL, bool validate )
 {
     _firmwareUrl = firmwareURL;
     _flashFileSystemUrl = firmwareURL;
     _cfg.check_sig = validate;
-    execOTA();
+    return execSPIFFSOTA();
 }
 
 
-void esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char*  firmwarePath, bool validate )
+bool esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char*  firmwarePath, bool validate )
 {
     static String firmwareURL("http");
     if ( firmwarePort == 443 || firmwarePort == 4433 ) firmwareURL += "s";
@@ -880,11 +901,11 @@ void esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, con
     firmwareURL += ":";
     firmwareURL += String(firmwarePort);
     firmwareURL += firmwarePath;
-    forceUpdate( firmwareURL.c_str(), validate );
+    return forceUpdate( firmwareURL.c_str(), validate );
 }
 
 
-void esp32FOTA::forceUpdate(bool validate )
+bool esp32FOTA::forceUpdate(bool validate )
 {
     // Forces an update from a manifest, ignoring the version check
     if(!execHTTPcheck()) {
@@ -892,11 +913,11 @@ void esp32FOTA::forceUpdate(bool validate )
             // execHTTPcheck returns false when the manifest is malformed or when the version isn't
             // an upgrade. If _firmwareUrl isn't set we can't force an upgrade.
             log_e("forceUpdate called, but unable to get _firmwareUrl from manifest via execHTTPcheck.");
-            return;
+            return false;
         }
     }
     _cfg.check_sig = validate;
-    execOTA();
+    return execOTA();
 }
 
 
