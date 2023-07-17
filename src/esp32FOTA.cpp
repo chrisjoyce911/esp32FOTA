@@ -41,7 +41,6 @@
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
-#define FW_SIGNATURE_LENGTH     512
 
 
 static int64_t getHTTPStream( esp32FOTA* fota, int partition );
@@ -181,13 +180,14 @@ void esp32FOTA::setConfig( FOTAConfig_t cfg )
     _cfg.use_device_id = cfg.use_device_id;
     _cfg.root_ca       = cfg.root_ca;
     _cfg.pub_key       = cfg.pub_key;
+    _cfg.signature_len = cfg.signature_len;
 }
 
 
 void esp32FOTA::printConfig( FOTAConfig_t *cfg )
 {
   if( cfg == nullptr ) cfg = &_cfg;
-  log_d("Name: %s\nManifest URL:%s\nSemantic Version: %d.%d.%d\nCheck Sig: %s\nUnsafe: %s\nUse Device ID: %s\nRootCA: %s\nPubKey: %s\n",
+  log_d("Name: %s\nManifest URL:%s\nSemantic Version: %d.%d.%d\nCheck Sig: %s\nUnsafe: %s\nUse Device ID: %s\nRootCA: %s\nPubKey: %s\nSignatureLen: %d\n",
     cfg->name ? cfg->name : "None",
     cfg->manifest_url ? cfg->manifest_url : "None",
     cfg->sem.ver()->major,
@@ -197,10 +197,16 @@ void esp32FOTA::printConfig( FOTAConfig_t *cfg )
     cfg->unsafe ?"true":"false",
     cfg->use_device_id ?"true":"false",
     cfg->root_ca ?"true":"false",
-    cfg->pub_key ?"true":"false"
+    cfg->pub_key ?"true":"false",
+    cfg->signature_len
   );
 }
 
+
+void esp32FOTA::setSignatureLen( size_t len )
+{
+    _cfg.signature_len = len;
+}
 
 
 void esp32FOTA::setCertFileSystem( fs::FS *cert_filesystem )
@@ -327,7 +333,7 @@ bool esp32FOTA::validate_sig( const esp_partition_t* partition, unsigned char *s
     }
     mbedtls_md_finish( &rsa, hash );
 
-    ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256, hash, mdinfo->size, (unsigned char*)signature, FW_SIGNATURE_LENGTH );
+    ret = mbedtls_pk_verify( &pk, MBEDTLS_MD_SHA256, hash, mdinfo->size, (unsigned char*)signature, _cfg.signature_len );
 
     free( hash );
     mbedtls_md_free( &rsa );
@@ -467,6 +473,27 @@ bool esp32FOTA::execOTA()
     return ret;
 }
 
+// OTA Logic
+bool esp32FOTA::execSPIFFSOTA()
+{
+	bool ret;
+    setupStream();
+
+    if( !_flashFileSystemUrl.isEmpty() ) { // a data partition was specified in the json manifest, handle the spiffs partition first
+        if( _fs ) { // Possible risk of overwriting certs and signatures, cancel flashing!
+            log_e("Cowardly refusing to overwrite U_SPIFFS with %s. Use setCertFileSystem(nullptr) along with setPubKey()/setCAPem() to enable this feature.", _flashFileSystemUrl);
+            return false;
+        } else {
+            log_i("Will check if U_SPIFFS needs updating");
+            ret = execOTA( U_SPIFFS, false );
+        }
+    } else {
+        log_i("This update is for U_FLASH only");
+    }
+    stopStream();
+    return ret;
+}
+
 
 bool esp32FOTA::execOTA( int partition, bool restart_after )
 {
@@ -513,11 +540,11 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
             log_e("Compressed && signed image is not (yet) supported");
             return false;
         }
-        if( updateSize == UPDATE_SIZE_UNKNOWN || updateSize <= FW_SIGNATURE_LENGTH ) {
+        if( updateSize == UPDATE_SIZE_UNKNOWN || updateSize <= _cfg.signature_len ) {
             log_e("Malformed signature+fw combo");
             return false;
         }
-        updateSize -= FW_SIGNATURE_LENGTH;
+        updateSize -= _cfg.signature_len;
     }
 
     // If using compression, the size is implicitely unknown
@@ -541,9 +568,9 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         });
     }
 
-    unsigned char signature[FW_SIGNATURE_LENGTH];
+    unsigned char* signature = new unsigned char[_cfg.signature_len];
     if( _cfg.check_sig ) {
-        _stream->readBytes( signature, FW_SIGNATURE_LENGTH );
+        _stream->readBytes( signature, _cfg.signature_len );
     }
 
     log_i("Begin %s OTA. This may take 2 - 5 mins to complete. Things might be quiet for a while.. Patience!", partition==U_FLASH?"Firmware":"Filesystem");
@@ -560,11 +587,13 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
     } else {
         log_e("Written only : %d/%d Premature end of stream?", written, updateSize);
         F_abort();
+        delete[] signature;
         return false;
     }
 
     if (!F_UpdateEnd()) {
         log_e("An Update Error Occurred. Error #: %s", F_Update.getError());
+        delete[] signature;
         return false;
     }
 
@@ -582,6 +611,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         if( !_target_partition ) {
             log_e("Can't access partition #%d to check signature!", partition);
             if( onUpdateCheckFail ) onUpdateCheckFail( partition, CHECK_SIG_ERROR_PARTITION_NOT_FOUND );
+            delete[] signature;
             return false;
         }
 
@@ -601,6 +631,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
         }
 
         if( !validate_sig( _target_partition, signature, updateSize ) ) {
+            delete[] signature;
             // erase partition
             esp_partition_erase_range( _target_partition, _target_partition->address, _target_partition->size );
 
@@ -613,6 +644,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
             }
             return false;
         } else {
+            delete[] signature;
             log_d("Signature check successful!");
             if( partition == U_FLASH ) {
                 // Set updated partition as bootable now that it's been verified
@@ -844,15 +876,24 @@ String esp32FOTA::getDeviceID()
 
 
 // Force a firmware update regardless on current version
-void esp32FOTA::forceUpdate(const char* firmwareURL, bool validate )
+bool esp32FOTA::forceUpdate(const char* firmwareURL, bool validate )
 {
     _firmwareUrl = firmwareURL;
     _cfg.check_sig = validate;
-    execOTA();
+    return execOTA();
+}
+
+// Force a firmware update regardless on current version
+bool esp32FOTA::forceUpdateSPIFFS(const char* firmwareURL, bool validate )
+{
+    _firmwareUrl = firmwareURL;
+    _flashFileSystemUrl = firmwareURL;
+    _cfg.check_sig = validate;
+    return execSPIFFSOTA();
 }
 
 
-void esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char*  firmwarePath, bool validate )
+bool esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char*  firmwarePath, bool validate )
 {
     static String firmwareURL("http");
     if ( firmwarePort == 443 || firmwarePort == 4433 ) firmwareURL += "s";
@@ -860,11 +901,11 @@ void esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, con
     firmwareURL += ":";
     firmwareURL += String(firmwarePort);
     firmwareURL += firmwarePath;
-    forceUpdate( firmwareURL.c_str(), validate );
+    return forceUpdate( firmwareURL.c_str(), validate );
 }
 
 
-void esp32FOTA::forceUpdate(bool validate )
+bool esp32FOTA::forceUpdate(bool validate )
 {
     // Forces an update from a manifest, ignoring the version check
     if(!execHTTPcheck()) {
@@ -872,11 +913,11 @@ void esp32FOTA::forceUpdate(bool validate )
             // execHTTPcheck returns false when the manifest is malformed or when the version isn't
             // an upgrade. If _firmwareUrl isn't set we can't force an upgrade.
             log_e("forceUpdate called, but unable to get _firmwareUrl from manifest via execHTTPcheck.");
-            return;
+            return false;
         }
     }
     _cfg.check_sig = validate;
-    execOTA();
+    return execOTA();
 }
 
 

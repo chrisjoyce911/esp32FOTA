@@ -147,7 +147,7 @@ extern "C" {
   #define F_writeStream() F_Update.writeStream(*_stream);
 #endif
 
-
+#define FW_SIGNATURE_LENGTH     512
 
 struct SemverClass
 {
@@ -211,6 +211,7 @@ struct FOTAConfig_t
   bool         use_device_id { false };
   CryptoAsset* root_ca { nullptr };
   CryptoAsset* pub_key { nullptr };
+  size_t       signature_len {FW_SIGNATURE_LENGTH};
   FOTAConfig_t() = default;
 };
 
@@ -242,13 +243,16 @@ public:
   template <typename T> void setPubKey( T* asset ) { _cfg.pub_key = (CryptoAsset*)asset; _cfg.check_sig = true; }
   template <typename T> void setRootCA( T* asset ) { _cfg.root_ca = (CryptoAsset*)asset; _cfg.unsafe = false; }
 
-  void forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char* firmwarePath, bool validate );
-  void forceUpdate(const char* firmwareURL, bool validate );
-  void forceUpdate(bool validate );
+  bool forceUpdate(const char* firmwareHost, uint16_t firmwarePort, const char* firmwarePath, bool validate );
+  bool forceUpdate(const char* firmwareURL, bool validate );
+  bool forceUpdate(bool validate );
+
+  bool forceUpdateSPIFFS(const char* firmwareURL, bool validate );
 
   void handle();
 
   bool execOTA();
+  bool execSPIFFSOTA();
   bool execOTA( int partition, bool restart_after = true );
   bool execHTTPcheck();
 
@@ -264,6 +268,9 @@ public:
 
   // use this to set "Authorization: Basic" or other specific headers to be sent with the queries
   void setExtraHTTPHeader( String name, String value ) { extraHTTPHeaders[name] = value; }
+
+  // set the signature len
+  void setSignatureLen( size_t len );
 
   // /!\ Only use this to change filesystem for **default** RootCA and PubKey paths.
   // Otherwise use setPubKey() and setRootCA()
