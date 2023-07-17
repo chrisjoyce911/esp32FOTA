@@ -592,7 +592,7 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
     }
 
     if (!F_UpdateEnd()) {
-        log_e("An Update Error Occurred. Error #: %s", F_Update.getError());
+        log_e("An Update Error Occurred. Error #: %d", F_Update.getError());
         delete[] signature;
         return false;
     }
