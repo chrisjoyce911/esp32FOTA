@@ -364,14 +364,14 @@ bool esp32FOTA::setupHTTP( const char* url )
                 log_e("A strict security context has been set but no RootCA was provided");
                 return false;
             }
-            rootcastr = _cfg.root_ca->get();
             if( _cfg.root_ca->size() == 0 ) {
                 log_e("A strict security context has been set but an empty RootCA was provided");
-                log_e("rootcastr=%s", rootcastr);
                 return false;
             }
+            rootcastr = _cfg.root_ca->get();
             if( !rootcastr ) {
                 log_e("Unable to get RootCA, aborting");
+                log_e("rootcastr=%s", rootcastr);
                 return false;
             }
             log_d("Loading root_ca.pem");
