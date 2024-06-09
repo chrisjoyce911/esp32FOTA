@@ -638,10 +638,6 @@ bool esp32FOTA::execOTA( int partition, bool restart_after )
             if( onUpdateCheckFail ) onUpdateCheckFail( partition, CHECK_SIG_ERROR_VALIDATION_FAILED );
 
             log_e("Signature check failed!");
-            if( restart_after ) {
-                log_w("Rebooting.");
-                ESP.restart();
-            }
             return false;
         } else {
             delete[] signature;
