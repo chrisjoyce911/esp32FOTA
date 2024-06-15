@@ -26,7 +26,7 @@ jobs:
       matrix:
         python-version: [3.7]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -51,7 +51,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: arduino/arduino-lint-action@v1
         with:
           project-type: library
