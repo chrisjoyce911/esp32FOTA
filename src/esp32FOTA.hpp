@@ -38,7 +38,17 @@ extern "C" {
 }
 
 #include <map>
-#include <WiFiClientSecure.h>
+#include <WiFi.h>
+
+// arduino-esp32 core 2.x => 3.x migration
+#if __has_include(<NetworkClientSecure.h>)
+  #include <NetworkClientSecure.h>
+  #define ClientSecure NetworkClientSecure
+#else
+  #include <WiFiClientSecure.h>
+  #define ClientSecure WiFiClientSecure
+#endif
+
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <FS.h>
@@ -84,8 +94,6 @@ extern "C" {
   //#endif
   #define FOTA_FS nullptr
 #endif
-
-
 
 
 #if __has_include(<flashz.hpp>)
@@ -325,7 +333,7 @@ public:
   FOTAConfig_t      getConfig()        { return _cfg; };
   FOTAStreamType_t  getStreamType()    { return _stream_type; }
   HTTPClient*       getHTTPCLient()    { return &_http; }
-  WiFiClientSecure* getWiFiClient()    { return &_client; }
+  ClientSecure*     getWiFiClient()    { return &_client; }
   fs::File*         getFotaFilePtr()   { return &_file; }
   Stream*           getFotaStreamPtr() { return _stream; }
   fs::FS*           getFotaFS()        { return _fs; }
@@ -341,7 +349,7 @@ public:
 private:
 
   HTTPClient _http;
-  WiFiClientSecure _client;
+  ClientSecure _client;
   Stream *_stream;
   fs::File _file;
 

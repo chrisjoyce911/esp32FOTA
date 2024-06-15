@@ -32,16 +32,24 @@
 
 #include "esp32FOTA.hpp"
 
-#include "mbedtls/pk.h"
-#include "mbedtls/md.h"
-#include "mbedtls/md_internal.h"
+// arduino-esp32 core 2.x => 3.x migration
+#if __has_include("md_wrap.h")
+  #include "md_wrap.h"
+#else
+  #include "mbedtls/pk.h"
+  #include "mbedtls/md.h"
+  #include "mbedtls/md_internal.h"
+#endif
+// arduino-esp32 core 2.x => 3.x migration
+#if !defined SPI_FLASH_SEC_SIZE
+  #include "spi_flash_mmap.h"
+#endif
+
 #include "esp_ota_ops.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
-
 
 static int64_t getHTTPStream( esp32FOTA* fota, int partition );
 static int64_t getFileStream( esp32FOTA* fota, int partition );
