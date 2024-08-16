@@ -189,6 +189,7 @@ void esp32FOTA::setConfig( FOTAConfig_t cfg )
     _cfg.root_ca       = cfg.root_ca;
     _cfg.pub_key       = cfg.pub_key;
     _cfg.signature_len = cfg.signature_len;
+    _cfg.allow_reuse   = cfg.allow_reuse;
 }
 
 
@@ -206,7 +207,8 @@ void esp32FOTA::printConfig( FOTAConfig_t *cfg )
     cfg->use_device_id ?"true":"false",
     cfg->root_ca ?"true":"false",
     cfg->pub_key ?"true":"false",
-    cfg->signature_len
+    cfg->signature_len,
+    cfg->allow_reuse
   );
 }
 
@@ -364,7 +366,8 @@ bool esp32FOTA::setupHTTP( const char* url )
 {
     const char* rootcastr = nullptr;
     _http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-
+    _http.setReuse(_cfg.allow_reuse);
+    
     log_i("Connecting to: %s", url );
     if( String(url).startsWith("https") ) {
         if (!_cfg.unsafe) {
