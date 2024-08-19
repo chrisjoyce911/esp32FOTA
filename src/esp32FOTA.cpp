@@ -190,13 +190,14 @@ void esp32FOTA::setConfig( FOTAConfig_t cfg )
     _cfg.pub_key       = cfg.pub_key;
     _cfg.signature_len = cfg.signature_len;
     _cfg.allow_reuse   = cfg.allow_reuse;
+    _cfg.use_http10    = cfg.use_http10;
 }
 
 
 void esp32FOTA::printConfig( FOTAConfig_t *cfg )
 {
   if( cfg == nullptr ) cfg = &_cfg;
-  log_d("Name: %s\nManifest URL:%s\nSemantic Version: %d.%d.%d\nCheck Sig: %s\nUnsafe: %s\nUse Device ID: %s\nRootCA: %s\nPubKey: %s\nSignatureLen: %d\n",
+  log_d("Name: %s\nManifest URL:%s\nSemantic Version: %d.%d.%d\nCheck Sig: %s\nUnsafe: %s\nUse Device ID: %s\nRootCA: %s\nPubKey: %s\nSignatureLen: %d\nHTTP Keep-Alive:%s\nHTTP 1.0:%s\n",
     cfg->name ? cfg->name : "None",
     cfg->manifest_url ? cfg->manifest_url : "None",
     cfg->sem.ver()->major,
@@ -208,7 +209,8 @@ void esp32FOTA::printConfig( FOTAConfig_t *cfg )
     cfg->root_ca ?"true":"false",
     cfg->pub_key ?"true":"false",
     cfg->signature_len,
-    cfg->allow_reuse
+    cfg->allow_reuse ? "true":"false",
+    cfg->use_http10 ?  "true":"false"
   );
 }
 
@@ -367,7 +369,9 @@ bool esp32FOTA::setupHTTP( const char* url )
     const char* rootcastr = nullptr;
     _http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     _http.setReuse(_cfg.allow_reuse);
+    _http.useHTTP10(_cfg.use_http10);
     
+
     log_i("Connecting to: %s", url );
     if( String(url).startsWith("https") ) {
         if (!_cfg.unsafe) {

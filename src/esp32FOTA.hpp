@@ -221,6 +221,7 @@ struct FOTAConfig_t
   CryptoAsset* pub_key { nullptr };
   size_t       signature_len {FW_SIGNATURE_LENGTH};
   bool         allow_reuse { true };
+  bool         use_http10 { false }; // Use HTTP 1.0 (WARNING: setting to 'true' disables chunked transfers)
   FOTAConfig_t() = default;
 };
 
