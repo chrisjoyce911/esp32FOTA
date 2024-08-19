@@ -220,6 +220,7 @@ struct FOTAConfig_t
   CryptoAsset* root_ca { nullptr };
   CryptoAsset* pub_key { nullptr };
   size_t       signature_len {FW_SIGNATURE_LENGTH};
+  bool         allow_reuse { true };
   FOTAConfig_t() = default;
 };
 
