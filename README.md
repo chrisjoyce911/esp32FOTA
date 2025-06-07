@@ -66,6 +66,46 @@ Version information can be either a single number or a semantic version string. 
 }
 ```
 
+### ⚠️ Important: URL Field Behavior
+
+**When using the `url` field in your manifest, all other URL-related fields will be ignored.** This includes:
+- `host`, `port`, `bin` fields
+- Filesystem fields: `spiffs`, `littlefs`, `fatfs`
+
+```json
+// ❌ This will NOT work - littlefs will be ignored because 'url' is present
+{
+  "type": "esp32-fota-http",
+  "version": "1.0.0",
+  "url": "https://example.com/firmware.bin",
+  "littlefs": "https://example.com/filesystem.bin"  // IGNORED!
+}
+
+// ✅ Use this format for firmware + filesystem updates
+{
+  "type": "esp32-fota-http",
+  "version": "1.0.0",
+  "host": "example.com",
+  "port": 443,
+  "bin": "/firmware.bin",
+  "littlefs": "/filesystem.bin"
+}
+
+// ✅ Or this format for firmware-only updates
+{
+  "type": "esp32-fota-http",
+  "version": "1.0.0",
+  "url": "https://example.com/firmware.bin"
+}
+```
+
+**Manifest Format Options:**
+
+1. **Complete URL (firmware only)**: Use `url` field - filesystem updates not supported
+2. **Component-based URLs (firmware + filesystem)**: Use `host`, `port`, `bin`, and optional `spiffs`/`littlefs`/`fatfs` fields
+
+You cannot mix these approaches in a single manifest.
+
 A single JSON file can provide information on multiple firmware types by combining them together into an array. When this is loaded, the firmware manifest with a type matching the one passed to the esp32FOTA constructor will be selected:
 
 ```json
