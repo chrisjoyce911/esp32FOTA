@@ -908,6 +908,7 @@ bool esp32FOTA::forceUpdate(const char* firmwareHost, uint16_t firmwarePort, con
 {
     static String firmwareURL("http");
     if ( firmwarePort == 443 || firmwarePort == 4433 ) firmwareURL += "s";
+    firmwareURL += "://";
     firmwareURL += String(firmwareHost);
     firmwareURL += ":";
     firmwareURL += String(firmwarePort);
