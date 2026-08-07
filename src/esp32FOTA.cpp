@@ -541,7 +541,7 @@ bool esp32FOTA::execOTA()
 // OTA Logic
 bool esp32FOTA::execSPIFFSOTA()
 {
-	bool ret;
+	bool ret = false;
     setupStream();
 
     if( !_flashFileSystemUrl.isEmpty() ) { // a data partition was specified in the json manifest, handle the spiffs partition first
